@@ -1,0 +1,48 @@
+name: malapp
+description: "A new Flutter project."
+
+publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.7.0
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+
+  cupertino_icons: ^1.0.8
+  
+  # HTTP client for API requests
+  http: ^0.13.5
+  # State management
+  provider: ^6.0.5
+  # Caching images
+  cached_network_image: ^3.3.0
+  # For pull-to-refresh functionality
+  pull_to_refresh: ^2.0.0
+  # For handling dates
+  intl: ^0.18.1
+  # For shimmer loading effect
+  shimmer: ^3.0.0
+  # Shared preferences
+  shared_preferences: ^2.0.18
+  xml: ^6.2.2
+  url_launcher: ^6.2.5  # or latest version
+  path_provider: ^2.0.0
+  universal_html: ^2.2.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+
+  flutter_lints: ^5.0.0
+
+
+flutter:
+  uses-material-design: true
