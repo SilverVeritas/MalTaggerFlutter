@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
-class ScraperControlPanel extends StatelessWidget {
+class ScraperControlPanel extends StatefulWidget {
   final bool isLoading;
   final bool isValidating;
   final bool isMultiSelectMode;
@@ -55,6 +56,43 @@ class ScraperControlPanel extends StatelessWidget {
   });
 
   @override
+  State<ScraperControlPanel> createState() => _ScraperControlPanelState();
+}
+
+class _ScraperControlPanelState extends State<ScraperControlPanel> {
+  bool _showMinMembersInput = false;
+  final TextEditingController _minMembersController = TextEditingController();
+  final FocusNode _minMembersFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _minMembersController.text = widget.minMembers.toString();
+    _minMembersFocusNode.addListener(() {
+      if (!_minMembersFocusNode.hasFocus) {
+        setState(() {
+          _showMinMembersInput = false;
+        });
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(ScraperControlPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.minMembers != widget.minMembers) {
+      _minMembersController.text = widget.minMembers.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _minMembersController.dispose();
+    _minMembersFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
@@ -71,10 +109,10 @@ class ScraperControlPanel extends StatelessWidget {
                   backgroundColor: Colors.blue[700],
                   foregroundColor: Colors.white,
                 ),
-                onPressed: isLoading ? null : onFetchAnime,
+                onPressed: widget.isLoading ? null : widget.onFetchAnime,
                 icon: const Icon(Icons.refresh, color: Colors.white),
                 label: Text(
-                  isLoading ? 'Fetching...' : 'Fetch Anime',
+                  widget.isLoading ? 'Fetching...' : 'Fetch Anime',
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -110,22 +148,134 @@ class ScraperControlPanel extends StatelessWidget {
         const SizedBox(height: 16),
 
         // Multi-select action bar
-        if (isMultiSelectMode && selectedItems > 0)
+        if (widget.isMultiSelectMode && widget.selectedItems > 0)
           _buildSelectionActionBar(theme),
 
         // Validation button (when not in multi-select mode)
-        if (hasAnimeList && !isMultiSelectMode) _buildValidationButton(),
+        if (widget.hasAnimeList && !widget.isMultiSelectMode)
+          _buildValidationButton(),
 
         // Status message
-        if (progressText.isNotEmpty) _buildStatusMessage(theme),
+        if (widget.progressText.isNotEmpty) _buildStatusMessage(theme),
 
         // Saved lists selector
-        if (savedLists.isNotEmpty) _buildSavedListsSelector(theme),
+        if (widget.savedLists.isNotEmpty) _buildSavedListsSelector(theme),
       ],
     );
   }
 
+  Widget _buildFilterControls(BuildContext context, ThemeData theme) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Min Members text/input field
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _showMinMembersInput = true;
+                    // Focus the field after state is updated
+                    Future.delayed(const Duration(milliseconds: 50), () {
+                      _minMembersFocusNode.requestFocus();
+                    });
+                  });
+                },
+                child:
+                    _showMinMembersInput
+                        ? Container(
+                          width: 120,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: theme.colorScheme.primary,
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: TextField(
+                            controller: _minMembersController,
+                            focusNode: _minMembersFocusNode,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            decoration: const InputDecoration(
+                              contentPadding: EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              isDense: true,
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: (value) {
+                              setState(() {
+                                _showMinMembersInput = false;
+                              });
+                              if (value.isNotEmpty) {
+                                final newValue =
+                                    int.tryParse(value) ?? widget.minMembers;
+                                // Clamp value between 0 and 200,000
+                                final clampedValue = newValue.clamp(0, 200000);
+                                widget.onMinMembersChanged(
+                                  clampedValue.toDouble(),
+                                );
+                              }
+                            },
+                          ),
+                        )
+                        : Text(
+                          'Min Members: ${_formatNumber(widget.minMembers)}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            decoration: TextDecoration.underline,
+                            decorationStyle: TextDecorationStyle.dotted,
+                          ),
+                        ),
+              ),
+              SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: theme.colorScheme.primary,
+                  inactiveTrackColor: theme.colorScheme.primaryContainer
+                      .withOpacity(0.3),
+                  thumbColor: theme.colorScheme.primary,
+                ),
+                child: Slider(
+                  value: widget.minMembers.toDouble(),
+                  min: 0,
+                  max: 200000,
+                  divisions: 40, // 5,000 increments
+                  onChanged: widget.onMinMembersChanged,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Exclude Chinese', style: theme.textTheme.bodyMedium),
+            Switch(
+              value: widget.excludeChinese,
+              activeColor: theme.colorScheme.primary,
+              onChanged: widget.onExcludeChineseChanged,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Helper method to format numbers with commas
+  String _formatNumber(int number) {
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (match) => '${match[1]},',
+    );
+  }
+
+  // Rest of the methods remain the same
   Widget _buildSortDropdown(ThemeData theme) {
+    // Implementation unchanged
     return Container(
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer.withOpacity(0.3),
@@ -133,7 +283,7 @@ class ScraperControlPanel extends StatelessWidget {
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: DropdownButton<String>(
-        value: sortBy,
+        value: widget.sortBy,
         underline: const SizedBox(),
         icon: const Icon(Icons.sort),
         dropdownColor: theme.cardColor,
@@ -148,55 +298,10 @@ class ScraperControlPanel extends StatelessWidget {
         ],
         onChanged: (value) {
           if (value != null) {
-            onSortChanged(value);
+            widget.onSortChanged(value);
           }
         },
       ),
-    );
-  }
-
-  Widget _buildFilterControls(BuildContext context, ThemeData theme) {
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Min Members: $minMembers',
-                style: theme.textTheme.bodyMedium,
-              ),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: theme.colorScheme.primary,
-                  inactiveTrackColor: theme.colorScheme.primaryContainer
-                      .withOpacity(0.3),
-                  thumbColor: theme.colorScheme.primary,
-                ),
-                child: Slider(
-                  value: minMembers.toDouble(),
-                  min: 0,
-                  max: 50000,
-                  divisions: 10,
-                  onChanged: onMinMembersChanged,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Exclude Chinese', style: theme.textTheme.bodyMedium),
-            Switch(
-              value: excludeChinese,
-              activeColor: theme.colorScheme.primary,
-              onChanged: onExcludeChineseChanged,
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -230,7 +335,7 @@ class ScraperControlPanel extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: DropdownButton<String>(
-                  value: selectedSeason,
+                  value: widget.selectedSeason,
                   isExpanded: true,
                   underline: const SizedBox(),
                   dropdownColor: theme.cardColor,
@@ -242,7 +347,7 @@ class ScraperControlPanel extends StatelessWidget {
                   ],
                   onChanged: (value) {
                     if (value != null) {
-                      onSeasonChanged(value);
+                      widget.onSeasonChanged(value);
                     }
                   },
                 ),
@@ -276,7 +381,7 @@ class ScraperControlPanel extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: DropdownButton<int>(
-                  value: selectedYear,
+                  value: widget.selectedYear,
                   isExpanded: true,
                   underline: const SizedBox(),
                   dropdownColor: theme.cardColor,
@@ -292,7 +397,7 @@ class ScraperControlPanel extends StatelessWidget {
                   ),
                   onChanged: (value) {
                     if (value != null) {
-                      onYearChanged(value);
+                      widget.onYearChanged(value);
                     }
                   },
                 ),
@@ -310,7 +415,7 @@ class ScraperControlPanel extends StatelessWidget {
       child: Row(
         children: [
           Text(
-            '$selectedItems items selected',
+            '${widget.selectedItems} items selected',
             style: TextStyle(
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.primary,
@@ -322,7 +427,7 @@ class ScraperControlPanel extends StatelessWidget {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            onPressed: onDeleteSelected,
+            onPressed: widget.onDeleteSelected,
             icon: const Icon(Icons.delete, color: Colors.white),
             label: const Text('Delete Selected'),
           ),
@@ -336,19 +441,22 @@ class ScraperControlPanel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: isValidating ? Colors.red[700] : Colors.blue[700],
+          backgroundColor:
+              widget.isValidating ? Colors.red[700] : Colors.blue[700],
           foregroundColor: Colors.white,
         ),
         onPressed:
-            isLoading
+            widget.isLoading
                 ? null
-                : (isValidating ? onCancelValidation : onValidateAllRss),
+                : (widget.isValidating
+                    ? widget.onCancelValidation
+                    : widget.onValidateAllRss),
         icon: Icon(
-          isValidating ? Icons.stop : Icons.check_circle,
+          widget.isValidating ? Icons.stop : Icons.check_circle,
           color: Colors.white,
         ),
         label: Text(
-          isValidating ? 'Stop Validation' : 'Validate All RSS',
+          widget.isValidating ? 'Stop Validation' : 'Validate All RSS',
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -369,7 +477,7 @@ class ScraperControlPanel extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          progressText,
+          widget.progressText,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: theme.colorScheme.onBackground,
           ),
@@ -398,7 +506,7 @@ class ScraperControlPanel extends StatelessWidget {
               child: DropdownButton<String>(
                 underline: const SizedBox(),
                 isExpanded: true,
-                value: selectedListName,
+                value: widget.selectedListName,
                 hint: Text(
                   'Load saved list',
                   style: TextStyle(
@@ -407,7 +515,7 @@ class ScraperControlPanel extends StatelessWidget {
                 ),
                 dropdownColor: theme.cardColor,
                 items:
-                    savedLists.keys.map((name) {
+                    widget.savedLists.keys.map((name) {
                       return DropdownMenuItem(
                         value: name,
                         child: Row(
@@ -425,7 +533,7 @@ class ScraperControlPanel extends StatelessWidget {
                                 size: 20,
                                 color: theme.colorScheme.error,
                               ),
-                              onPressed: () => onDeleteList(name),
+                              onPressed: () => widget.onDeleteList(name),
                             ),
                           ],
                         ),
@@ -433,7 +541,7 @@ class ScraperControlPanel extends StatelessWidget {
                     }).toList(),
                 onChanged: (value) {
                   if (value != null) {
-                    onLoadList(value);
+                    widget.onLoadList(value);
                   }
                 },
               ),
