@@ -343,4 +343,34 @@ class AppState extends ChangeNotifier {
       qbClient.dispose();
     }
   }
+
+  Future<void> refreshAnimeList() async {
+    isLoading = true;
+    notifyListeners();
+    
+    try {
+      // Reload anime list from storage or API
+      final animeList = await FileUtils.readAnimeList();
+      
+      // Update your internal list
+      _animeList = animeList;
+      _filterAnimeList();
+    } catch (e) {
+      print('Error refreshing anime list: $e');
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  bool isLoading = false;
+
+  void _updateFilteredList() {
+    // Implementation depends on how you're filtering
+    // Something like:
+    _filteredList = _searchText.isEmpty 
+        ? _animeList 
+        : _animeList.where((anime) => 
+            anime.title.toLowerCase().contains(_searchText.toLowerCase())).toList();
+  }
 } 

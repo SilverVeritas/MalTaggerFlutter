@@ -21,44 +21,88 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Provider.of<AppState>(context).isDarkMode;
-    
-    return MaterialApp(
-      title: 'Anime Tracker',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1A237E), // Indigo 900
-          brightness: Brightness.dark,
-          primary: const Color(0xFF3949AB),   // Indigo 600
-          secondary: const Color(0xFF5C6BC0), // Indigo 400
-          surface: const Color(0xFF0D1B2A),  // Dark blue surface
-          background: const Color(0xFF0D1B2A), // Dark blue background
-          onBackground: Colors.white,
-          onSurface: Colors.white,
-        ),
-        scaffoldBackgroundColor: const Color(0xFF0D1B2A),
-        cardColor: const Color(0xFF1E293B),  // Slightly lighter dark blue
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF1A237E),
-          foregroundColor: Colors.white,
-        ),
-        useMaterial3: true,
-      ),
-      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-      home: const HomeScreen(),
-      routes: {
-        '/anime_scraper': (context) => const AnimeScraperScreen(),
-        '/qbittorrent_add': (context) => const QBittorrentAddScreen(),
-        '/qbittorrent_dashboard': (context) => const QBittorrentDashboardScreen(),
-        '/settings': (context) => const SettingsScreen(),
+    return Consumer<AppState>(
+      builder: (context, appState, child) {
+        return MaterialApp(
+          title: 'Anime Tracker',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.blue,
+              brightness: appState.isDarkMode ? Brightness.dark : Brightness.light,
+            ),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.blue,
+              brightness: Brightness.dark,
+            ),
+            useMaterial3: true,
+          ),
+          themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          home: const MainNavigationScreen(),
+          routes: {
+            '/anime_scraper': (context) => const AnimeScraperScreen(),
+            '/qbittorrent_add': (context) => const QBittorrentAddScreen(),
+            '/qbittorrent_dashboard': (context) => const QBittorrentDashboardScreen(),
+            '/settings': (context) => const SettingsScreen(),
+          },
+        );
       },
+    );
+  }
+}
+
+class MainNavigationScreen extends StatefulWidget {
+  const MainNavigationScreen({super.key});
+
+  @override
+  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+}
+
+class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  int _selectedIndex = 0;
+  
+  static final List<Widget> _pages = [
+    const HomeScreen(),
+    const AnimeScraperScreen(),
+    const SettingsScreen(),
+  ];
+  
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Library',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.search_outlined),
+            selectedIcon: Icon(Icons.search),
+            label: 'Discover',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
+          ),
+        ],
+      ),
     );
   }
 }

@@ -184,76 +184,34 @@ class QBittorrentAPI {
   
   Future<Map<String, dynamic>> getRssFeeds() async {
     try {
-      // Ensure we have a valid session
-      if (_sessionCookie == null) {
-        if (!await login()) return {};
-      }
-      
       final url = '$_baseUrl/api/v2/rss/items';
-      final response = await _client.get(
-        Uri.parse(url),
-        headers: _headers,
-      );
-      
-      // If unauthorized, try to login again
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        if (await login()) {
-          return getRssFeeds(); // Retry with new session
-        }
-        return {};
-      }
+      final response = await _client.get(Uri.parse(url));
       
       if (response.statusCode == 200) {
-        try {
-          return jsonDecode(response.body) as Map<String, dynamic>;
-        } catch (e) {
-          print('Error parsing RSS feeds response: $e');
-          return {};
-        }
+        return json.decode(response.body);
       } else {
-        print('Failed to get RSS feeds, status code: ${response.statusCode}');
+        print('Failed to get RSS feeds: ${response.statusCode} - ${response.body}');
         return {};
       }
     } catch (e) {
-      print('Failed to get RSS feeds: $e');
+      print('Error getting RSS feeds: $e');
       return {};
     }
   }
   
   Future<Map<String, dynamic>> getRssRules() async {
     try {
-      // Ensure we have a valid session
-      if (_sessionCookie == null) {
-        if (!await login()) return {};
-      }
-      
       final url = '$_baseUrl/api/v2/rss/rules';
-      final response = await _client.get(
-        Uri.parse(url),
-        headers: _headers,
-      );
-      
-      // If unauthorized, try to login again
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        if (await login()) {
-          return getRssRules(); // Retry with new session
-        }
-        return {};
-      }
+      final response = await _client.get(Uri.parse(url));
       
       if (response.statusCode == 200) {
-        try {
-          return jsonDecode(response.body) as Map<String, dynamic>;
-        } catch (e) {
-          print('Error parsing RSS rules response: $e');
-          return {};
-        }
+        return json.decode(response.body);
       } else {
-        print('Failed to get RSS rules, status code: ${response.statusCode}');
+        print('Failed to get RSS rules: ${response.statusCode} - ${response.body}');
         return {};
       }
     } catch (e) {
-      print('Failed to get RSS rules: $e');
+      print('Error getting RSS rules: $e');
       return {};
     }
   }

@@ -1,85 +1,89 @@
 import 'package:flutter/material.dart';
+import '../models/anime.dart';
 import 'anime_scraper_screen.dart';
-import 'qbittorrent_dashboard_screen.dart';
+import 'qbittorrent_add_screen.dart';
 import 'settings_screen.dart';
+import 'dashboard_screen.dart'; // Import the new dashboard screen
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A1929), // Dark blue background
-      appBar: AppBar(
-        title: const Text('MAL Tagger',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: const Color(0xFF172B45), // Slightly lighter dark blue
-        elevation: 2,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SettingsScreen()),
-            ),
-          ),
-        ],
-      ),
-      body: SafeArea(
+      appBar: AppBar(title: const Text('Anime Tracker')),
+      body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // App logo or icon
+              Icon(
+                Icons.live_tv,
+                size: 80,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 24),
               const Text(
-                'Welcome to MAL Tagger',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                'Anime Tracker',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 48),
+
+              // Main navigation buttons
+              _buildNavigationButton(
+                context,
+                'Anime Library',
+                Icons.collections_bookmark,
+                () => Navigator.pushNamed(context, '/anime_library'),
+              ),
+              const SizedBox(height: 16),
+              _buildNavigationButton(
+                context,
+                'Anime Scraper',
+                Icons.search,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AnimeScraperScreen(),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Manage your anime and torrent downloads',
-                style: TextStyle(
-                  color: Colors.lightBlue, // Better contrast on dark blue
-                  fontSize: 16,
+              const SizedBox(height: 16),
+              _buildNavigationButton(
+                context,
+                'qBittorrent',
+                Icons.download,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const QBittorrentAddScreen(),
+                  ),
                 ),
               ),
-              const SizedBox(height: 32),
-              Expanded(
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  children: [
-                    _buildFeatureCard(
-                      context,
-                      'Anime Scraper',
-                      Icons.search,
-                      Colors.purpleAccent,
-                      () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const AnimeScraperScreen()),
-                      ),
-                    ),
-                    _buildFeatureCard(
-                      context,
-                      'qBittorrent',
-                      Icons.downloading,
-                      Colors.lightBlueAccent,
-                      () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const QBittorrentDashboardScreen()),
-                      ),
-                    ),
-                    // Add more feature cards as needed
-                  ],
+              const SizedBox(height: 16),
+              _buildNavigationButton(
+                context,
+                'qBit Dashboard',
+                Icons.dashboard,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const QBittorrentDashboardScreen(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildNavigationButton(
+                context,
+                'App Settings',
+                Icons.settings,
+                () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
                 ),
               ),
             ],
@@ -89,41 +93,50 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildFeatureCard(BuildContext context, String title, IconData icon, 
-                          Color color, VoidCallback onTap) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
-      color: const Color(0xFF172B45), // Keeping blue theme
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 48,
-                color: color,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+  Widget _buildNavigationButton(
+    BuildContext context,
+    String label,
+    IconData icon,
+    VoidCallback onPressed,
+  ) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        icon: Icon(icon),
+        label: Text(label, style: const TextStyle(fontSize: 16)),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
         ),
+        onPressed: onPressed,
       ),
     );
   }
-} 
+}
+
+class AnimeListItem extends StatelessWidget {
+  final Anime anime;
+
+  const AnimeListItem({super.key, required this.anime});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      child: ListTile(
+        leading: Image.network(
+          anime.imageUrl,
+          width: 50,
+          height: 70,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
+        ),
+        title: Text(anime.title),
+        subtitle: Text(
+          'Episodes: ${anime.episodes}\n'
+          'Status: ${anime.status}',
+        ),
+        isThreeLine: true,
+      ),
+    );
+  }
+}
