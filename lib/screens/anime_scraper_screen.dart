@@ -11,6 +11,7 @@ import '../widgets/anime_item_card.dart';
 import '../widgets/json_editor_widget.dart';
 import '../utils/string_extensions.dart';
 import '../widgets/scraper_control_panel.dart';
+import '../widgets/anime_search_dialog.dart';
 
 class AnimeScraperScreen extends StatefulWidget {
   const AnimeScraperScreen({super.key});
@@ -541,126 +542,28 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
   }
 
   void _addAnimeManually() {
-    final TextEditingController urlController = TextEditingController();
-    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
-    bool isSubmitting = false;
-
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: const Text('Add Anime from MAL URL'),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextFormField(
-                      controller: urlController,
-                      decoration: const InputDecoration(
-                        labelText: 'MyAnimeList URL',
-                        hintText: 'https://myanimelist.net/anime/...',
-                        prefixIcon: Icon(Icons.link),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a URL';
-                        }
-                        if (!value.contains('myanimelist.net/anime/')) {
-                          return 'Please enter a valid MyAnimeList anime URL';
-                        }
-                        return null;
-                      },
-                      enabled: !isSubmitting,
-                    ),
-                    const SizedBox(height: 16),
-                    if (isSubmitting)
-                      const Column(
-                        children: [
-                          CircularProgressIndicator(),
-                          SizedBox(height: 8),
-                          Text('Fetching anime data...'),
-                        ],
-                      ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting ? null : () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed:
-                      isSubmitting
-                          ? null
-                          : () async {
-                            if (formKey.currentState!.validate()) {
-                              setDialogState(() {
-                                isSubmitting = true;
-                              });
-
-                              // Extract MAL ID from URL
-                              final url = urlController.text;
-                              final RegExp regExp = RegExp(
-                                r'myanimelist\.net/anime/(\d+)',
-                              );
-                              final match = regExp.firstMatch(url);
-
-                              if (match != null && match.groupCount >= 1) {
-                                final malId = int.parse(match.group(1)!);
-
-                                try {
-                                  // Fetch anime data using MAL ID
-                                  await _fetchAnimeFromMalId(malId);
-                                  if (mounted) {
-                                    Navigator.pop(context);
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Anime added successfully',
-                                        ),
-                                      ),
-                                    );
-                                  }
-                                } catch (e) {
-                                  if (mounted) {
-                                    setDialogState(() {
-                                      isSubmitting = false;
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text('Error: ${e.toString()}'),
-                                      ),
-                                    );
-                                  }
-                                }
-                              } else {
-                                setDialogState(() {
-                                  isSubmitting = false;
-                                });
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Could not extract MAL ID from URL',
-                                    ),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                  child: const Text('Add'),
-                ),
-              ],
-            );
+      builder: (BuildContext dialogContext) {
+        return AnimeSearchDialog(
+          onAnimeSelected: (int malId) async {
+            try {
+              await _fetchAnimeFromMalId(malId);
+              if (mounted) {
+                Navigator.pop(dialogContext);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Anime added successfully')),
+                );
+              }
+            } catch (e) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Error: ${e.toString()}')));
+            }
           },
         );
       },
-    ).then((_) {
-      urlController.dispose();
-    });
+    );
   }
 
   // Add this method to fetch anime data from MAL ID
