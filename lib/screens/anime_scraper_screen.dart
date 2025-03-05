@@ -90,7 +90,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
   String _generateDefaultListName() {
     final now = DateTime.now();
     final season = _selectedSeason.capitalize();
-    return '${season}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}_${now.minute.toString().padLeft(2, '0')}';
+    return '${season}_${_selectedYear}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}_${now.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _saveCurrentList() async {
@@ -179,7 +179,9 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
                     SnackBar(content: Text('List "$listName" saved')),
                   );
                 },
-                child: const Text('Save'),
+                child: const Text(
+                  'Save',
+                ), // Fixed: Added the missing 'child' parameter
               ),
             ],
           ),
@@ -253,68 +255,62 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     ).showSnackBar(SnackBar(content: Text('List "$listName" deleted')));
   }
 
-  void _addToLibrary(ScrapedAnime scrapedAnime) async {
-    final appState = Provider.of<AppState>(context, listen: false);
+  // Handle single entry deletion
+  Future<void> _deleteAnimeEntry(int index) async {
+    // Show confirmation dialog
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder:
+              (context) => AlertDialog(
+                title: const Text('Confirm Delete'),
+                content: Text(
+                  'Are you sure you want to delete "${_scrapedAnime[index].title}"?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancel'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red),
+                    child: const Text('Delete'),
+                  ),
+                ],
+              ),
+        ) ??
+        false;
+
+    if (!confirmed) return;
 
     setState(() {
-      _isLoading = true;
-      _progressText = 'Adding ${scrapedAnime.title} to library...';
+      _scrapedAnime.removeAt(index);
+
+      // Update the saved list if we're working with one
+      if (_selectedListName != null) {
+        _savedLists[_selectedListName!] = List.from(_scrapedAnime);
+        _saveUpdatedLists();
+      }
     });
 
-    try {
-      // Get details from MyAnimeList if possible
-      Anime? anime;
-      if (scrapedAnime.malId != null) {
-        anime = await appState.getAnimeDetails(scrapedAnime.malId!);
-      }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Entry deleted')));
+  }
 
-      // Generate RSS URL
-      final rssUrl = _scraperService.generateRssUrl(
-        scrapedAnime.title,
-        appState.preferredFansubber,
-      );
-
-      // Validate RSS feed
-      final (isValid, episodeCount) = await _scraperService.validateRssFeed(
-        rssUrl,
-      );
-
-      // If not found on MAL, create a basic entry
-      anime ??= Anime(
-        malId: scrapedAnime.malId ?? 0,
-        title: scrapedAnime.title,
-        imageUrl: scrapedAnime.imageUrl,
-        episodes: scrapedAnime.episodes ?? '?',
-        status: 'plan_to_watch',
-        fansubber: appState.preferredFansubber,
-        date: 'TBA',
-        synopsis: 'No synopsis available',
-        genres: [],
-        score: 0.0,
-        members: 0,
-        type: 'Unknown',
-        source: 'Unknown',
-        rssUrl: rssUrl,
-      );
-
-      // If we have an anime from MAL, update its RSS URL
-      if (anime.rssUrl.isEmpty) {
-        anime = anime.copyWith(rssUrl: rssUrl);
-      }
-
-      await appState.addAnime(anime);
-
-      setState(() {
-        _isLoading = false;
-        _progressText =
-            'Added ${anime!.title} to library${isValid ? ' (RSS valid)' : ' (RSS invalid)'}';
-      });
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-        _progressText = 'Error adding anime: ${e.toString()}';
-      });
-    }
+  // Helper method to save updated lists to SharedPreferences
+  Future<void> _saveUpdatedLists() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedListsMap = Map.fromEntries(
+      _savedLists.entries.map((entry) {
+        return MapEntry(
+          entry.key,
+          entry.value.map((anime) => anime.toJson()).toList(),
+        );
+      }),
+    );
+    await prefs.setString('scraped_anime_lists', jsonEncode(savedListsMap));
   }
 
   Future<void> _fetchAnime(AppState appState) async {
@@ -465,6 +461,35 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
   }
 
   void _deleteSelectedItems() {
+    // Show confirmation dialog
+    showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Confirm Delete'),
+            content: Text(
+              'Are you sure you want to delete ${_selectedItems.length} selected items?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        _performDeleteSelectedItems();
+      }
+    });
+  }
+
+  void _performDeleteSelectedItems() {
     // Sort indices in descending order to avoid issues with shifting indices
     _selectedItems.sort((a, b) => b.compareTo(a));
 
@@ -476,6 +501,12 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
       }
       _selectedItems.clear();
       _isMultiSelectMode = false;
+
+      // Update the saved list if we're working with one
+      if (_selectedListName != null) {
+        _savedLists[_selectedListName!] = List.from(_scrapedAnime);
+        _saveUpdatedLists();
+      }
 
       if (_scrapedAnime.isEmpty) {
         _progressText = 'All items deleted.';
@@ -547,6 +578,12 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
       setState(() {
         _scrapedAnime = newAnimeList;
         _showJsonEditor = false;
+
+        // Update the saved list if we're working with one
+        if (_selectedListName != null) {
+          _savedLists[_selectedListName!] = List.from(_scrapedAnime);
+          _saveUpdatedLists();
+        }
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -579,7 +616,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
           isSelected: isSelected,
           isSelectionMode: _isMultiSelectMode,
           onSelect: () => _toggleSelectItem(index),
-          onAddToLibrary: () => _addToLibrary(anime),
+          onDelete: () => _deleteAnimeEntry(index), // Use the delete function
           scraperService: _scraperService,
           onTitleChanged: (newValue) {
             setState(() {

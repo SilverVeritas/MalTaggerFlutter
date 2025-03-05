@@ -12,7 +12,7 @@ class AnimeItemCard extends StatefulWidget {
   final bool isSelected;
   final bool isSelectionMode;
   final VoidCallback onSelect;
-  final VoidCallback onAddToLibrary;
+  final VoidCallback onDelete;
   final AnimeScraperService scraperService;
   final Function(String) onTitleChanged;
   final Function(String) onFansubberChanged;
@@ -25,7 +25,7 @@ class AnimeItemCard extends StatefulWidget {
     required this.isSelected,
     required this.isSelectionMode,
     required this.onSelect,
-    required this.onAddToLibrary,
+    required this.onDelete,
     required this.scraperService,
     required this.onTitleChanged,
     required this.onFansubberChanged,
@@ -39,12 +39,15 @@ class AnimeItemCard extends StatefulWidget {
 class _AnimeItemCardState extends State<AnimeItemCard> {
   late TextEditingController _titleController;
   late TextEditingController _rssController;
+  late TextEditingController _customFansubberController;
   bool _isValidating = false;
+  bool _showCustomFansubber = false;
 
   @override
   void initState() {
     super.initState();
     _initControllers();
+    _customFansubberController = TextEditingController();
   }
 
   @override
@@ -83,6 +86,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
   @override
   void dispose() {
     _disposeControllers();
+    _customFansubberController.dispose();
     super.dispose();
   }
 
@@ -152,7 +156,9 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
           color:
               widget.isSelected
                   ? theme.colorScheme.primary
-                  : theme.colorScheme.outline.withOpacity(0.2),
+                  : theme.colorScheme.outline.withAlpha(
+                    51,
+                  ), // Fixed withOpacity
           width: widget.isSelected ? 2 : 1,
         ),
       ),
@@ -203,7 +209,9 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       return Container(
                         width: 70,
                         height: 100,
-                        color: theme.colorScheme.primary.withOpacity(0.1),
+                        color: theme.colorScheme.primary.withAlpha(
+                          26,
+                        ), // Fixed withOpacity
                         child: Icon(
                           Icons.broken_image,
                           color: theme.colorScheme.primary,
@@ -223,7 +231,9 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       color:
                           widget.isSelected
                               ? theme.colorScheme.primary
-                              : theme.colorScheme.surface.withOpacity(0.7),
+                              : theme.colorScheme.surface.withAlpha(
+                                179,
+                              ), // Fixed withOpacity
                       borderRadius: const BorderRadius.only(
                         bottomRight: Radius.circular(8),
                       ),
@@ -273,7 +283,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                     _buildTag(
                       theme,
                       '${(widget.anime.members! / 1000).toStringAsFixed(1)}K',
-                      theme.colorScheme.tertiary ?? theme.colorScheme.primary,
+                      theme.colorScheme.tertiary,
                     ),
                 ],
               ),
@@ -289,12 +299,23 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.colorScheme.onSurface.withOpacity(0.9),
+                      color: theme.colorScheme.onSurface.withAlpha(
+                        230,
+                      ), // Fixed withOpacity
                     ),
                   ),
                 ),
             ],
           ),
+          trailing:
+              !widget.isSelectionMode
+                  ? IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Delete entry',
+                    color: Colors.red.shade600,
+                    onPressed: widget.onDelete,
+                  )
+                  : null,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -310,7 +331,9 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: theme.colorScheme.primary.withOpacity(0.9),
+                        color: theme.colorScheme.primary.withAlpha(
+                          230,
+                        ), // Fixed withOpacity
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -389,23 +412,23 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withOpacity(
-                                  0.1,
-                                ),
+                                color: theme.colorScheme.primary.withAlpha(
+                                  26,
+                                ), // Fixed withOpacity
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: theme.colorScheme.primary.withOpacity(
-                                    0.3,
-                                  ),
+                                  color: theme.colorScheme.primary.withAlpha(
+                                    77,
+                                  ), // Fixed withOpacity
                                 ),
                               ),
                               child: Text(
                                 genre,
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: theme.colorScheme.primary.withOpacity(
-                                    0.9,
-                                  ),
+                                  color: theme.colorScheme.primary.withAlpha(
+                                    230,
+                                  ), // Fixed withOpacity
                                 ),
                               ),
                             );
@@ -423,7 +446,9 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       color:
                           theme.brightness == Brightness.dark
                               ? Colors.white
-                              : theme.colorScheme.primary.withOpacity(0.9),
+                              : theme.colorScheme.primary.withAlpha(
+                                230,
+                              ), // Fixed withOpacity
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -449,11 +474,13 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Fansubber selection with better styling
+                  // Fansubber selection with custom option
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: theme.colorScheme.outline.withOpacity(0.3),
+                        color: theme.colorScheme.outline.withAlpha(
+                          77,
+                        ), // Fixed withOpacity
                       ),
                       borderRadius: BorderRadius.circular(8),
                       color: theme.colorScheme.surface,
@@ -462,47 +489,122 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       horizontal: 12,
                       vertical: 4,
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Fansubber:',
-                          style: TextStyle(
-                            color:
-                                theme.brightness == Brightness.dark
-                                    ? Colors.white.withOpacity(0.9)
-                                    : theme.colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              'Fansubber:',
+                              style: TextStyle(
+                                color:
+                                    theme.brightness == Brightness.dark
+                                        ? Colors.white.withAlpha(
+                                          230,
+                                        ) // Fixed withOpacity
+                                        : theme.colorScheme.primary,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButton<String>(
+                                value:
+                                    kFansubbers.contains(widget.anime.fansubber)
+                                        ? widget.anime.fansubber
+                                        : 'custom',
+                                isExpanded: true,
+                                underline: const SizedBox(),
+                                dropdownColor: theme.cardColor,
+                                items: [
+                                  ...kFansubberOptions.map((fansubber) {
+                                    return DropdownMenuItem(
+                                      value: fansubber,
+                                      child: Text(fansubber),
+                                    );
+                                  }),
+                                  const DropdownMenuItem(
+                                    value: 'custom',
+                                    child: Text('Custom...'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() {
+                                      if (value == 'custom') {
+                                        // Don't change fansubber yet, just show the text field
+                                        _showCustomFansubber = true;
+                                        // Initialize custom fansubber field with current value if not from standard list
+                                        if (!kFansubbers.contains(
+                                          widget.anime.fansubber,
+                                        )) {
+                                          _customFansubberController.text =
+                                              widget.anime.fansubber;
+                                        }
+                                      } else {
+                                        widget.onFansubberChanged(value);
+                                        // Update RSS URL when fansubber changes
+                                        _rssController.text = widget
+                                            .scraperService
+                                            .generateRssUrl(
+                                              widget.anime.title,
+                                              value,
+                                            );
+                                        _showCustomFansubber = false;
+                                      }
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButton<String>(
-                            value: widget.anime.fansubber,
-                            isExpanded: true,
-                            underline: const SizedBox(),
-                            dropdownColor: theme.cardColor,
-                            items:
-                                kFansubbers.map((fansubber) {
-                                  return DropdownMenuItem(
-                                    value: fansubber,
-                                    child: Text(fansubber),
-                                  );
-                                }).toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                widget.onFansubberChanged(value);
+                        if (_showCustomFansubber) ...[
+                          const SizedBox(height: 8),
+                          TextField(
+                            controller: _customFansubberController,
+                            decoration: InputDecoration(
+                              labelText: 'Enter custom fansubber',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.check),
+                                onPressed: () {
+                                  final customValue =
+                                      _customFansubberController.text.trim();
+                                  if (customValue.isNotEmpty) {
+                                    widget.onFansubberChanged(customValue);
+                                    setState(() {
+                                      _showCustomFansubber = false;
+                                      // Update RSS URL when fansubber changes
+                                      _rssController.text = widget
+                                          .scraperService
+                                          .generateRssUrl(
+                                            widget.anime.title,
+                                            customValue,
+                                          );
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
+                            onSubmitted: (value) {
+                              if (value.trim().isNotEmpty) {
+                                widget.onFansubberChanged(value.trim());
                                 setState(() {
+                                  _showCustomFansubber = false;
                                   // Update RSS URL when fansubber changes
                                   _rssController.text = widget.scraperService
                                       .generateRssUrl(
                                         widget.anime.title,
-                                        value,
+                                        value.trim(),
                                       );
                                 });
                               }
                             },
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
@@ -517,7 +619,9 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       labelStyle: TextStyle(
                         color:
                             theme.brightness == Brightness.dark
-                                ? Colors.white.withOpacity(0.9)
+                                ? Colors.white.withAlpha(
+                                  230,
+                                ) // Fixed withOpacity
                                 : theme.colorScheme.primary,
                         fontWeight: FontWeight.w500,
                       ),
@@ -569,34 +673,15 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                   const SizedBox(height: 8),
                   _buildValidationStatus(appState),
 
-                  // Action buttons with better styling
+                  // Action buttons with better styling - Replaced "Add to Library" with "Delete Entry"
                   Padding(
                     padding: const EdgeInsets.only(top: 16.0),
                     child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.blue[700],
-                            side: BorderSide(
-                              color: Colors.blue[700]!,
-                              width: 1.5,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
-                          ),
-                          onPressed: widget.onAddToLibrary,
-                          icon: const Icon(Icons.add_circle_outline),
-                          label: const Text(
-                            'Add to Library',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red[600],
+                            foregroundColor: Colors.red[700],
                             side: BorderSide(
                               color: Colors.red[700]!,
                               width: 1.5,
@@ -619,6 +704,25 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                           icon: const Icon(Icons.refresh),
                           label: const Text(
                             'Reset RSS',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red[700],
+                            side: BorderSide(
+                              color: Colors.red[700]!,
+                              width: 1.5,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                          ),
+                          onPressed: widget.onDelete,
+                          icon: const Icon(Icons.delete),
+                          label: const Text(
+                            'Delete Entry',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -694,10 +798,13 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
       decoration: BoxDecoration(
         color:
             theme.brightness == Brightness.dark
-                ? color.withOpacity(0.3)
-                : color.withOpacity(0.15),
+                ? color.withAlpha(77) // Fixed withOpacity
+                : color.withAlpha(38), // Fixed withOpacity
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withOpacity(0.5), width: 1),
+        border: Border.all(
+          color: color.withAlpha(128),
+          width: 1,
+        ), // Fixed withOpacity
       ),
       child: Text(
         text,
@@ -705,8 +812,8 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
           fontSize: 11,
           color:
               theme.brightness == Brightness.dark
-                  ? Colors.white.withOpacity(0.95)
-                  : color.withOpacity(0.9),
+                  ? Colors.white.withAlpha(242) // Fixed withOpacity
+                  : color.withAlpha(230), // Fixed withOpacity
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -728,8 +835,10 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                 fontWeight: FontWeight.w500,
                 color:
                     theme.brightness == Brightness.dark
-                        ? Colors.white.withOpacity(0.9)
-                        : theme.colorScheme.primary.withOpacity(0.8),
+                        ? Colors.white.withAlpha(230) // Fixed withOpacity
+                        : theme.colorScheme.primary.withAlpha(
+                          204,
+                        ), // Fixed withOpacity
                 fontSize: 13,
               ),
             ),
