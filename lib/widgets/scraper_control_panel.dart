@@ -20,6 +20,7 @@ class ScraperControlPanel extends StatefulWidget {
   final Function(bool) onExcludeChineseChanged;
   final Function(String) onSeasonChanged;
   final Function(int) onYearChanged;
+  final VoidCallback onAddAnimeManually;
   final VoidCallback onDeleteSelected;
   final VoidCallback onValidateAllRss;
   final VoidCallback onCancelValidation;
@@ -53,6 +54,7 @@ class ScraperControlPanel extends StatefulWidget {
     required this.onLoadList,
     required this.onDeleteList,
     required this.hasAnimeList,
+    required this.onAddAnimeManually,
   });
 
   @override
@@ -439,29 +441,52 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
   Widget _buildValidationButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: ElevatedButton.icon(
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              widget.isValidating ? Colors.red[700] : Colors.blue[700],
-          foregroundColor: Colors.white,
-        ),
-        onPressed:
-            widget.isLoading
-                ? null
-                : (widget.isValidating
-                    ? widget.onCancelValidation
-                    : widget.onValidateAllRss),
-        icon: Icon(
-          widget.isValidating ? Icons.stop : Icons.check_circle,
-          color: Colors.white,
-        ),
-        label: Text(
-          widget.isValidating ? 'Stop Validation' : 'Validate All RSS',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+      child: Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    widget.isValidating ? Colors.red[700] : Colors.blue[700],
+                foregroundColor: Colors.white,
+              ),
+              onPressed:
+                  widget.isLoading
+                      ? null
+                      : (widget.isValidating
+                          ? widget.onCancelValidation
+                          : widget.onValidateAllRss),
+              icon: Icon(
+                widget.isValidating ? Icons.stop : Icons.check_circle,
+                color: Colors.white,
+              ),
+              label: Text(
+                widget.isValidating ? 'Stop Validation' : 'Validate All RSS',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green[700],
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+            onPressed: widget.isLoading ? null : widget.onAddAnimeManually,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text(
+              'Add Anime',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

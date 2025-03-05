@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:malapp/constants.dart';
 import 'package:provider/provider.dart';
 import '../services/app_state.dart';
 import '../services/anime_scraper_service.dart';
 import '../models/scraped_anime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../widgets/anime_item_card.dart';
 import '../widgets/json_editor_widget.dart';
@@ -538,6 +540,212 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     });
   }
 
+  void _addAnimeManually() {
+    final TextEditingController urlController = TextEditingController();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Anime from MAL URL'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: urlController,
+                      decoration: const InputDecoration(
+                        labelText: 'MyAnimeList URL',
+                        hintText: 'https://myanimelist.net/anime/...',
+                        prefixIcon: Icon(Icons.link),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Please enter a URL';
+                        }
+                        if (!value.contains('myanimelist.net/anime/')) {
+                          return 'Please enter a valid MyAnimeList anime URL';
+                        }
+                        return null;
+                      },
+                      enabled: !isSubmitting,
+                    ),
+                    const SizedBox(height: 16),
+                    if (isSubmitting)
+                      const Column(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 8),
+                          Text('Fetching anime data...'),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed:
+                      isSubmitting
+                          ? null
+                          : () async {
+                            if (formKey.currentState!.validate()) {
+                              setDialogState(() {
+                                isSubmitting = true;
+                              });
+
+                              // Extract MAL ID from URL
+                              final url = urlController.text;
+                              final RegExp regExp = RegExp(
+                                r'myanimelist\.net/anime/(\d+)',
+                              );
+                              final match = regExp.firstMatch(url);
+
+                              if (match != null && match.groupCount >= 1) {
+                                final malId = int.parse(match.group(1)!);
+
+                                try {
+                                  // Fetch anime data using MAL ID
+                                  await _fetchAnimeFromMalId(malId);
+                                  if (mounted) {
+                                    Navigator.pop(context);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Anime added successfully',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    setDialogState(() {
+                                      isSubmitting = false;
+                                    });
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: ${e.toString()}'),
+                                      ),
+                                    );
+                                  }
+                                }
+                              } else {
+                                setDialogState(() {
+                                  isSubmitting = false;
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Could not extract MAL ID from URL',
+                                    ),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                  child: const Text('Add'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      urlController.dispose();
+    });
+  }
+
+  // Add this method to fetch anime data from MAL ID
+  Future<void> _fetchAnimeFromMalId(int malId) async {
+    if (!mounted) return;
+
+    setState(() {
+      _progressText = 'Fetching anime data from MAL...';
+    });
+
+    try {
+      final appState = Provider.of<AppState>(context, listen: false);
+
+      // Use Jikan API to get anime details
+      final url = '$kJikanApiBaseUrl/anime/$malId';
+      final response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to load anime: ${response.statusCode}');
+      }
+
+      final data = json.decode(response.body);
+      final animeData = data['data'];
+
+      if (animeData == null) {
+        throw Exception('Anime data not found');
+      }
+
+      // Create ScrapedAnime object from response
+      final anime = ScrapedAnime(
+        title: animeData['title'] ?? '',
+        imageUrl:
+            animeData['images']?['jpg']?['large_image_url'] ??
+            animeData['images']?['jpg']?['image_url'] ??
+            '',
+        episodes: animeData['episodes']?.toString(),
+        malId: animeData['mal_id'],
+        synopsis: animeData['synopsis'],
+        members: animeData['members'],
+        releaseDate: animeData['aired']?['string'],
+        score: animeData['score']?.toDouble(),
+        type: animeData['type'],
+        studio:
+            animeData['studios'] != null &&
+                    (animeData['studios'] as List).isNotEmpty
+                ? animeData['studios'][0]['name']
+                : null,
+        genres:
+            animeData['genres'] != null
+                ? (animeData['genres'] as List)
+                    .map<String>((g) => g['name'] as String)
+                    .toList()
+                : null,
+        fansubber: appState.preferredFansubber, // Use preferred fansubber
+      );
+
+      // Generate RSS URL
+      anime.rssUrl = _scraperService.generateRssUrl(
+        anime.title,
+        anime.fansubber,
+      );
+
+      // Add to list
+      if (mounted) {
+        setState(() {
+          _scrapedAnime.add(anime);
+          _progressText = 'Added ${anime.title} to the list';
+
+          // If we have a selected list, update it
+          if (_selectedListName != null) {
+            _savedLists[_selectedListName!] = List.from(_scrapedAnime);
+            _saveUpdatedLists();
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _progressText = 'Error adding anime: $e';
+        });
+      }
+      throw e; // Rethrow to be caught by the calling method
+    }
+  }
+
   void _sortAnimeList() {
     setState(() {
       switch (_sortBy) {
@@ -733,6 +941,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
                   _minMembers = value.toInt();
                 });
               },
+              onAddAnimeManually: _addAnimeManually,
               onExcludeChineseChanged: (value) {
                 setState(() {
                   _excludeChinese = value;
