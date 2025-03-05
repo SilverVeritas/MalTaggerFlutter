@@ -183,9 +183,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
                     SnackBar(content: Text('List "$listName" saved')),
                   );
                 },
-                child: const Text(
-                  'Save',
-                ), // Fixed: Added the missing 'child' parameter
+                child: const Text('Save'),
               ),
             ],
           ),
@@ -195,7 +193,11 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
   void _loadList(String listName) {
     if (_savedLists.containsKey(listName)) {
       setState(() {
-        _scrapedAnime = List.from(_savedLists[listName]!);
+        // Create deep copies of the loaded anime to ensure we're not modifying the saved list directly
+        _scrapedAnime =
+            _savedLists[listName]!
+                .map((anime) => ScrapedAnime.fromJson(anime.toJson()))
+                .toList();
         _selectedListName = listName;
         _selectedItems = [];
         _isMultiSelectMode = false;
@@ -236,9 +238,16 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     if (!confirmed) return;
 
     setState(() {
+      // Remove the list from the saved lists
       _savedLists.remove(listName);
+
+      // If we're deleting the currently selected list, clear the current view
       if (_selectedListName == listName) {
         _selectedListName = null;
+        _scrapedAnime = []; // Clear the current anime list
+        _progressText = 'List "$listName" deleted. Screen cleared.';
+      } else {
+        _progressText = 'List "$listName" deleted.';
       }
     });
 
@@ -318,7 +327,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
   }
 
   Future<void> _fetchAnime(AppState appState) async {
-    if (!mounted) return; // Check if widget is still mounted
+    if (!mounted) return;
 
     setState(() {
       _isLoading = true;
@@ -332,12 +341,16 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
       // Create a flag to track if operation was canceled
       bool canceled = false;
 
-      // Use the selected season and year instead of the app state
+      // Get the preferred fansubber from app state
+      final preferredFansubber = appState.preferredFansubber;
+
+      // Use the selected season and year instead of the app state, and pass the preferred fansubber
       final scrapedAnime = await _scraperService.scrapeFromMALSeasonalPage(
         _selectedSeason,
         _selectedYear,
         minMembers: _minMembers,
         excludeChinese: _excludeChinese,
+        preferredFansubber: preferredFansubber, // Pass the preferred fansubber
         progressCallback: (current, total) {
           if (!mounted) {
             canceled = true; // Mark as canceled if no longer mounted
@@ -576,6 +589,8 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
 
     try {
       final appState = Provider.of<AppState>(context, listen: false);
+      final preferredFansubber =
+          appState.preferredFansubber; // Get preferred fansubber
 
       // Use Jikan API to get anime details
       final url = '$kJikanApiBaseUrl/anime/$malId';
@@ -592,7 +607,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
         throw Exception('Anime data not found');
       }
 
-      // Create ScrapedAnime object from response
+      // Create ScrapedAnime object from response with preferred fansubber
       final anime = ScrapedAnime(
         title: animeData['title'] ?? '',
         imageUrl:
@@ -617,13 +632,13 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
                     .map<String>((g) => g['name'] as String)
                     .toList()
                 : null,
-        fansubber: appState.preferredFansubber, // Use preferred fansubber
+        fansubber: preferredFansubber, // Use preferred fansubber
       );
 
-      // Generate RSS URL
+      // Generate RSS URL with preferred fansubber
       anime.rssUrl = _scraperService.generateRssUrl(
         anime.title,
-        anime.fansubber,
+        preferredFansubber,
       );
 
       // Add to list
@@ -749,7 +764,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
           isSelected: isSelected,
           isSelectionMode: _isMultiSelectMode,
           onSelect: () => _toggleSelectItem(index),
-          onDelete: () => _deleteAnimeEntry(index), // Use the delete function
+          onDelete: () => _deleteAnimeEntry(index),
           scraperService: _scraperService,
           onTitleChanged: (newValue) {
             setState(() {
