@@ -19,45 +19,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isDarkMode = false;
   bool _showAdult = false;
   bool _isSettingsChanged = false;
-  
+
   @override
   void initState() {
     super.initState();
     _loadSettings();
   }
-  
+
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    
+
+    // Get the preferred fansubber from SharedPreferences
+    final preferredFansubber =
+        prefs.getString('preferred_fansubber') ?? kDefaultFansubber;
+
     setState(() {
       _qbHostController.text = prefs.getString('qb_host') ?? '';
       _qbUsernameController.text = prefs.getString('qb_username') ?? '';
       _qbPasswordController.text = prefs.getString('qb_password') ?? '';
-      _selectedFansubber = prefs.getString('preferred_fansubber') ?? kDefaultFansubber;
+
+      // Make sure the selected fansubber is in the kFansubbers list
+      _selectedFansubber =
+          kFansubbers.contains(preferredFansubber)
+              ? preferredFansubber
+              : kDefaultFansubber;
+
       _isDarkMode = prefs.getBool('dark_mode') ?? false;
       _showAdult = prefs.getBool('show_adult') ?? false;
     });
   }
-  
+
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
     final appState = Provider.of<AppState>(context, listen: false);
-    
+
     await prefs.setString('qb_host', _qbHostController.text);
     await prefs.setString('qb_username', _qbUsernameController.text);
     await prefs.setString('qb_password', _qbPasswordController.text);
     await prefs.setString('preferred_fansubber', _selectedFansubber);
     await prefs.setBool('dark_mode', _isDarkMode);
     await prefs.setBool('show_adult', _showAdult);
-    
+
     appState.preferredFansubber = _selectedFansubber;
     appState.isDarkMode = _isDarkMode;
     appState.showAdult = _showAdult;
-    
+
     setState(() {
       _isSettingsChanged = false;
     });
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -101,9 +111,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
             },
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Anime Settings
           const Text(
             'Anime Settings',
@@ -111,10 +121,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const Divider(),
           DropdownButtonFormField<String>(
-            decoration: const InputDecoration(
-              labelText: 'Preferred Fansubber',
-            ),
-            value: _selectedFansubber,
+            decoration: const InputDecoration(labelText: 'Preferred Fansubber'),
+            value:
+                kFansubberOptions.contains(_selectedFansubber)
+                    ? _selectedFansubber
+                    : kDefaultFansubber, // Ensure the value exists in items
             onChanged: (String? newValue) {
               if (newValue != null) {
                 setState(() {
@@ -123,14 +134,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 });
               }
             },
-            items: kFansubbers.map<DropdownMenuItem<String>>((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
+            items:
+                kFansubberOptions.map<DropdownMenuItem<String>>((String value) {
+                  return DropdownMenuItem<String>(
+                    value: value,
+                    child: Text(value),
+                  );
+                }).toList(),
           ),
-          
+
           SwitchListTile(
             title: const Text('Show Adult Content'),
             subtitle: const Text('Include adult anime in search results'),
@@ -142,9 +154,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
             },
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // qBittorrent Settings
           const Text(
             'qBittorrent Settings',
@@ -162,17 +174,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           TextField(
             controller: _qbUsernameController,
-            decoration: const InputDecoration(
-              labelText: 'Username',
-            ),
+            decoration: const InputDecoration(labelText: 'Username'),
             onChanged: (_) => setState(() => _isSettingsChanged = true),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _qbPasswordController,
-            decoration: const InputDecoration(
-              labelText: 'Password',
-            ),
+            decoration: const InputDecoration(labelText: 'Password'),
             obscureText: true,
             onChanged: (_) => setState(() => _isSettingsChanged = true),
           ),
@@ -182,9 +190,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             label: const Text('Test qBittorrent Connection'),
             onPressed: _testQBittorrentConnection,
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Save Button
           ElevatedButton(
             onPressed: _isSettingsChanged ? _saveSettings : null,
@@ -194,17 +202,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   Future<void> _testQBittorrentConnection() async {
     final appState = Provider.of<AppState>(context, listen: false);
-    
+
     try {
       final result = await appState.testQBittorrentConnection(
         host: _qbHostController.text,
         username: _qbUsernameController.text,
         password: _qbPasswordController.text,
       );
-      
+
       if (mounted) {
         if (result['status'] == 'Success') {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -225,15 +233,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     }
   }
-  
+
   @override
   void dispose() {
     _qbHostController.dispose();
@@ -241,4 +246,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _qbPasswordController.dispose();
     super.dispose();
   }
-} 
+}

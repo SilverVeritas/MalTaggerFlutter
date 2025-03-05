@@ -48,6 +48,22 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
     super.initState();
     _initControllers();
     _customFansubberController = TextEditingController();
+
+    // Get preferred fansubber when the card is first initialized
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (widget.anime.fansubber.isEmpty) {
+        // Only update if fansubber isn't already set
+        widget.onFansubberChanged(appState.preferredFansubber);
+        // Update RSS URL to match preferred fansubber
+        widget.onRssUrlChanged(
+          widget.scraperService.generateRssUrl(
+            widget.anime.title,
+            appState.preferredFansubber,
+          ),
+        );
+      }
+    });
   }
 
   @override

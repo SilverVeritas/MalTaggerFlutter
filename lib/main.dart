@@ -28,7 +28,8 @@ class MyApp extends StatelessWidget {
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.blue,
-              brightness: appState.isDarkMode ? Brightness.dark : Brightness.light,
+              brightness:
+                  appState.isDarkMode ? Brightness.dark : Brightness.light,
             ),
             useMaterial3: true,
           ),
@@ -42,9 +43,13 @@ class MyApp extends StatelessWidget {
           themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const MainNavigationScreen(),
           routes: {
+            '/anime_library':
+                (context) =>
+                    const HomeScreen(), // Update this to the correct screen
             '/anime_scraper': (context) => const AnimeScraperScreen(),
             '/qbittorrent_add': (context) => const QBittorrentAddScreen(),
-            '/qbittorrent_dashboard': (context) => const QBittorrentDashboardScreen(),
+            '/qbittorrent_dashboard':
+                (context) => const QBittorrentDashboardScreen(),
             '/settings': (context) => const SettingsScreen(),
           },
         );
@@ -62,13 +67,13 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
-  
+
   static final List<Widget> _pages = [
     const HomeScreen(),
     const AnimeScraperScreen(),
     const SettingsScreen(),
   ];
-  
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -78,10 +83,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onItemTapped,

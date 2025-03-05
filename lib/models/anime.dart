@@ -15,7 +15,7 @@ class Anime {
   final String fansubber;
   final List<String>? alternativeTitles;
   final bool? isAdult;
-  
+
   Anime({
     required this.title,
     required this.date,
@@ -34,7 +34,7 @@ class Anime {
     this.alternativeTitles,
     this.isAdult,
   });
-  
+
   factory Anime.fromJson(Map<String, dynamic> json) {
     return Anime(
       title: json['title'] ?? '',
@@ -51,16 +51,19 @@ class Anime {
       malId: json['mal_id'],
       rssUrl: json['rssUrl'] ?? '',
       fansubber: json['fansubber'] ?? 'ember',
-      alternativeTitles: json['alternative_titles'] != null ? List<String>.from(json['alternative_titles'].values) : null,
+      alternativeTitles:
+          json['alternative_titles'] != null
+              ? List<String>.from(json['alternative_titles'].values)
+              : null,
       isAdult: json['rating']?.toString().contains('Rx') ?? false,
     );
   }
-  
+
   factory Anime.fromJikan(Map<String, dynamic> json) {
     final titles = <String>[];
     if (json['title_english'] != null) titles.add(json['title_english']);
     if (json['title_japanese'] != null) titles.add(json['title_japanese']);
-    
+
     return Anime(
       malId: json['mal_id'],
       title: json['title'] ?? '',
@@ -80,7 +83,7 @@ class Anime {
       members: 0,
     );
   }
-  
+
   Map<String, dynamic> toJson() {
     return {
       'title': title,
@@ -97,11 +100,13 @@ class Anime {
       'mal_id': malId,
       'rssUrl': rssUrl,
       'fansubber': fansubber,
-      'alternative_titles': alternativeTitles != null ? alternativeTitles!.asMap().map((k, v) => MapEntry(k.toString(), v)) : null,
+      'alternative_titles': alternativeTitles?.asMap().map(
+        (k, v) => MapEntry(k.toString(), v),
+      ),
       'isAdult': isAdult,
     };
   }
-  
+
   Anime copyWith({
     String? title,
     String? date,
@@ -139,4 +144,4 @@ class Anime {
       isAdult: isAdult ?? this.isAdult,
     );
   }
-} 
+}

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/app_state.dart';
-import '../models/anime.dart';
 import '../services/anime_scraper_service.dart';
 import '../models/scraped_anime.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -90,7 +89,9 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
   String _generateDefaultListName() {
     final now = DateTime.now();
     final season = _selectedSeason.capitalize();
-    return '${season}_${_selectedYear}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}_${now.minute.toString().padLeft(2, '0')}';
+    final appState = Provider.of<AppState>(context, listen: false);
+    // Include preferred fansubber in the list name
+    return '${season}_${_selectedYear}_${appState.preferredFansubber}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}_${now.minute.toString().padLeft(2, '0')}';
   }
 
   Future<void> _saveCurrentList() async {
@@ -314,6 +315,8 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
   }
 
   Future<void> _fetchAnime(AppState appState) async {
+    if (!mounted) return; // Check if widget is still mounted
+
     setState(() {
       _isLoading = true;
       _progressText = 'Scraping anime...';
@@ -323,43 +326,55 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     });
 
     try {
+      // Create a flag to track if operation was canceled
+      bool canceled = false;
+
       // Use the selected season and year instead of the app state
-      _scrapedAnime = await _scraperService.scrapeFromMALSeasonalPage(
+      final scrapedAnime = await _scraperService.scrapeFromMALSeasonalPage(
         _selectedSeason,
         _selectedYear,
         minMembers: _minMembers,
         excludeChinese: _excludeChinese,
         progressCallback: (current, total) {
+          if (!mounted) {
+            canceled = true; // Mark as canceled if no longer mounted
+            return;
+          }
           setState(() {
             _progressText = 'Fetching page $current of $total...';
           });
         },
       );
 
-      // Apply the selected sort
-      _sortAnimeList();
+      // If operation was canceled or widget is no longer mounted, exit early
+      if (canceled || !mounted) return;
 
-      if (_scrapedAnime.isEmpty) {
-        setState(() {
+      setState(() {
+        _scrapedAnime = scrapedAnime;
+
+        // Apply the selected sort
+        _sortAnimeList();
+
+        if (_scrapedAnime.isEmpty) {
           _progressText = 'No anime found for the selected season.';
-        });
-      } else {
-        setState(() {
+        } else {
           _progressText = 'Found ${_scrapedAnime.length} anime.';
-        });
-      }
+        }
+        _isLoading = false;
+      });
     } catch (e) {
+      if (!mounted) return; // Check if widget is still mounted
+
       setState(() {
         _progressText = 'Error: ${e.toString()}';
-      });
-    } finally {
-      setState(() {
         _isLoading = false;
       });
     }
   }
 
   Future<void> _validateAllRss() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _isValidating = true;
@@ -376,13 +391,17 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
       final total = _scrapedAnime.length;
 
       for (final anime in _scrapedAnime) {
-        // Check if cancellation was requested
-        if (_shouldCancelValidation) {
-          setState(() {
-            _progressText =
-                'Validation cancelled after $validated of $total RSS feeds';
-          });
-          break;
+        // Check if widget is still mounted or if cancellation was requested
+        if (!mounted || _shouldCancelValidation) {
+          if (mounted) {
+            setState(() {
+              _progressText =
+                  'Validation cancelled after $validated of $total RSS feeds';
+              _isLoading = false;
+              _isValidating = false;
+            });
+          }
+          return;
         }
 
         final index = _scrapedAnime.indexOf(anime);
@@ -393,9 +412,11 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
           anime.rssUrl,
         );
 
-        setState(() {
-          _progressText = 'Validating RSS feeds (${validated + 1}/$total)...';
-        });
+        if (mounted) {
+          setState(() {
+            _progressText = 'Validating RSS feeds (${validated + 1}/$total)...';
+          });
+        }
 
         final (isValid, episodeCount) = await _scraperService.validateRssFeed(
           rssUrl,
@@ -413,21 +434,22 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
         await Future.delayed(const Duration(milliseconds: 500));
       }
 
-      if (!_shouldCancelValidation) {
+      if (mounted && !_shouldCancelValidation) {
         setState(() {
           _progressText =
               'RSS validation complete. Valid: ${results.values.where((v) => v).length}/${results.length}';
+          _isLoading = false;
+          _isValidating = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _progressText = 'Error validating RSS feeds: $e';
-      });
-    } finally {
-      setState(() {
-        _isLoading = false;
-        _isValidating = false;
-      });
+      if (mounted) {
+        setState(() {
+          _progressText = 'Error validating RSS feeds: $e';
+          _isLoading = false;
+          _isValidating = false;
+        });
+      }
     }
   }
 
