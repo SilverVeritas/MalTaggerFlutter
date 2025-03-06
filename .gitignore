@@ -48,6 +48,5 @@ app.*.map.json
 *.env
 
 # OS Folders
-/windows/
 /linux/
 /macos/

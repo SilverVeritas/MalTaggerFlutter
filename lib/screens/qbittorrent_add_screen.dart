@@ -360,7 +360,7 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('qBittorrent Integration')),
+      appBar: AppBar(title: const Text('Add Anime to qBittorent')),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),

@@ -834,7 +834,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Anime Scraper'),
+        title: const Text('Anime Finder'),
         elevation: 4,
         actions: [
           // Multi-select mode toggle
