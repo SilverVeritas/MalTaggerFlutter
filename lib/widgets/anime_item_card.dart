@@ -172,9 +172,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
           color:
               widget.isSelected
                   ? theme.colorScheme.primary
-                  : theme.colorScheme.outline.withAlpha(
-                    51,
-                  ), // Fixed withOpacity
+                  : theme.colorScheme.outline.withAlpha(51),
           width: widget.isSelected ? 2 : 1,
         ),
       ),
@@ -225,9 +223,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       return Container(
                         width: 70,
                         height: 100,
-                        color: theme.colorScheme.primary.withAlpha(
-                          26,
-                        ), // Fixed withOpacity
+                        color: theme.colorScheme.primary.withAlpha(26),
                         child: Icon(
                           Icons.broken_image,
                           color: theme.colorScheme.primary,
@@ -247,9 +243,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       color:
                           widget.isSelected
                               ? theme.colorScheme.primary
-                              : theme.colorScheme.surface.withAlpha(
-                                179,
-                              ), // Fixed withOpacity
+                              : theme.colorScheme.surface.withAlpha(179),
                       borderRadius: const BorderRadius.only(
                         bottomRight: Radius.circular(8),
                       ),
@@ -315,9 +309,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 12,
-                      color: theme.colorScheme.onSurface.withAlpha(
-                        230,
-                      ), // Fixed withOpacity
+                      color: theme.colorScheme.onSurface.withAlpha(230),
                     ),
                   ),
                 ),
@@ -347,15 +339,44 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
-                        color: theme.colorScheme.primary.withAlpha(
-                          230,
-                        ), // Fixed withOpacity
+                        color: theme.colorScheme.primary.withAlpha(230),
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       widget.anime.synopsis!,
                       style: TextStyle(color: theme.colorScheme.onSurface),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Add alternative titles section here
+                  if (widget.anime.alternativeTitles != null &&
+                      widget.anime.alternativeTitles!.isNotEmpty) ...[
+                    Text(
+                      'Alternative Titles',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: theme.colorScheme.primary.withAlpha(230),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children:
+                          widget.anime.alternativeTitles!.map((title) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Text(
+                                '• $title',
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            );
+                          }).toList(),
                     ),
                     const SizedBox(height: 16),
                   ],
@@ -428,14 +449,12 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withAlpha(
-                                  26,
-                                ), // Fixed withOpacity
+                                color: theme.colorScheme.primary.withAlpha(26),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
                                   color: theme.colorScheme.primary.withAlpha(
                                     77,
-                                  ), // Fixed withOpacity
+                                  ),
                                 ),
                               ),
                               child: Text(
@@ -444,7 +463,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                                   fontSize: 12,
                                   color: theme.colorScheme.primary.withAlpha(
                                     230,
-                                  ), // Fixed withOpacity
+                                  ),
                                 ),
                               ),
                             );
@@ -462,9 +481,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       color:
                           theme.brightness == Brightness.dark
                               ? Colors.white
-                              : theme.colorScheme.primary.withAlpha(
-                                230,
-                              ), // Fixed withOpacity
+                              : theme.colorScheme.primary.withAlpha(230),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -494,9 +511,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                   Container(
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: theme.colorScheme.outline.withAlpha(
-                          77,
-                        ), // Fixed withOpacity
+                        color: theme.colorScheme.outline.withAlpha(77),
                       ),
                       borderRadius: BorderRadius.circular(8),
                       color: theme.colorScheme.surface,
@@ -515,9 +530,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                               style: TextStyle(
                                 color:
                                     theme.brightness == Brightness.dark
-                                        ? Colors.white.withAlpha(
-                                          230,
-                                        ) // Fixed withOpacity
+                                        ? Colors.white.withAlpha(230)
                                         : theme.colorScheme.primary,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -635,9 +648,7 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                       labelStyle: TextStyle(
                         color:
                             theme.brightness == Brightness.dark
-                                ? Colors.white.withAlpha(
-                                  230,
-                                ) // Fixed withOpacity
+                                ? Colors.white.withAlpha(230)
                                 : theme.colorScheme.primary,
                         fontWeight: FontWeight.w500,
                       ),
@@ -814,13 +825,10 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
       decoration: BoxDecoration(
         color:
             theme.brightness == Brightness.dark
-                ? color.withAlpha(77) // Fixed withOpacity
-                : color.withAlpha(38), // Fixed withOpacity
+                ? color.withAlpha(77)
+                : color.withAlpha(38),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: color.withAlpha(128),
-          width: 1,
-        ), // Fixed withOpacity
+        border: Border.all(color: color.withAlpha(128), width: 1),
       ),
       child: Text(
         text,
@@ -828,8 +836,8 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
           fontSize: 11,
           color:
               theme.brightness == Brightness.dark
-                  ? Colors.white.withAlpha(242) // Fixed withOpacity
-                  : color.withAlpha(230), // Fixed withOpacity
+                  ? Colors.white.withAlpha(242)
+                  : color.withAlpha(230),
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -851,10 +859,8 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                 fontWeight: FontWeight.w500,
                 color:
                     theme.brightness == Brightness.dark
-                        ? Colors.white.withAlpha(230) // Fixed withOpacity
-                        : theme.colorScheme.primary.withAlpha(
-                          204,
-                        ), // Fixed withOpacity
+                        ? Colors.white.withAlpha(230)
+                        : theme.colorScheme.primary.withAlpha(204),
                 fontSize: 13,
               ),
             ),

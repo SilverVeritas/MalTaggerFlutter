@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
 import '../services/jikan_service.dart';
 
+// App State
 class AppState extends ChangeNotifier {
   final JikanService _jikanService = JikanService();
 
@@ -41,6 +42,10 @@ class AppState extends ChangeNotifier {
   String _preferredFansubber = kDefaultFansubber;
   bool _showAdult = false;
 
+  // qBittorrent download settings
+  bool _useCustomDir = false;
+  String _customDirPath = '/dl';
+
   // Getters
   String get season => _season;
   int get year => _year;
@@ -51,6 +56,8 @@ class AppState extends ChangeNotifier {
   bool get isDarkMode => _isDarkMode;
   String get preferredFansubber => _preferredFansubber;
   bool get showAdult => _showAdult;
+  bool get useCustomDir => _useCustomDir;
+  String get customDirPath => _customDirPath;
 
   AppState() {
     // Initialize with current season
@@ -217,12 +224,29 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  set useCustomDir(bool value) {
+    _useCustomDir = value;
+    _saveSettings();
+    notifyListeners();
+  }
+
+  set customDirPath(String value) {
+    _customDirPath = value;
+    _saveSettings();
+    notifyListeners();
+  }
+
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool('dark_mode') ?? false;
     _preferredFansubber =
         prefs.getString('preferred_fansubber') ?? kDefaultFansubber;
     _showAdult = prefs.getBool('show_adult') ?? false;
+
+    // Add these lines to load qBittorrent download settings
+    _useCustomDir = prefs.getBool('use_custom_dir') ?? false;
+    _customDirPath = prefs.getString('custom_dir_path') ?? '/dl';
+
     notifyListeners();
   }
 
@@ -231,6 +255,10 @@ class AppState extends ChangeNotifier {
     await prefs.setBool('dark_mode', _isDarkMode);
     await prefs.setString('preferred_fansubber', _preferredFansubber);
     await prefs.setBool('show_adult', _showAdult);
+
+    // Add these lines to save qBittorrent download settings
+    await prefs.setBool('use_custom_dir', _useCustomDir);
+    await prefs.setString('custom_dir_path', _customDirPath);
   }
 
   // Load anime list from storage

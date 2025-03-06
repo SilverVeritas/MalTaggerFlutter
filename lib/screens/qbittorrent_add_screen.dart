@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
-import '../services/file_utils.dart';
+import 'package:provider/provider.dart';
 import '../services/qbittorrent_api.dart';
+import '../services/app_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config/env_config.dart';
+import '../models/scraped_anime.dart';
+import 'dart:convert';
+import '../services/season_utils.dart';
 
 class QBittorrentAddScreen extends StatefulWidget {
   const QBittorrentAddScreen({super.key});
@@ -15,14 +19,24 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
   final _hostController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  
+  final _customDirController = TextEditingController();
+
   bool _isConnecting = false;
   bool _isProcessing = false;
   String _connectionStatus = 'Not connected';
-  String? _selectedFile;
-  List<String> _savedFiles = [];
+  String? _selectedListName;
+  List<String> _availableLists = [];
+  Map<String, List<ScrapedAnime>> _savedLists = {};
   Map<String, dynamic> _processingResults = {};
-  
+
+  // Season and year
+  String _selectedSeason = '';
+  int _selectedYear = DateTime.now().year;
+  bool _useCustomDir = false;
+
+  String get _helperText =>
+      'Anime will be saved to "${_customDirController.text}/{animeName}"';
+
   @override
   void initState() {
     super.initState();
@@ -30,49 +44,106 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
     _usernameController.text = EnvConfig.defaultUsername;
     _passwordController.text = EnvConfig.defaultPassword;
     _loadConnectionSettings();
-    _loadSavedFiles();
+    _loadScrapedLists();
+    _initializeSeasonAndYear();
   }
-  
+
+  void _initializeSeasonAndYear() {
+    // Get current season information
+    final seasonData = SeasonUtils.getCurrentSeason();
+
+    // Get the AppState for custom directory settings
+    final appState = Provider.of<AppState>(context, listen: false);
+
+    setState(() {
+      _selectedSeason = seasonData.season;
+      _selectedYear = seasonData.year;
+
+      // Get custom directory settings from AppState
+      _useCustomDir = appState.useCustomDir;
+      _customDirController.text = appState.customDirPath;
+    });
+  }
+
+  Future<void> _loadCustomDirSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _useCustomDir = prefs.getBool('use_custom_dir') ?? false;
+      _customDirController.text = prefs.getString('custom_dir_path') ?? '/dl';
+    });
+  }
+
+  Future<void> _saveCustomDirSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    final appState = Provider.of<AppState>(context, listen: false);
+
+    await prefs.setBool('use_custom_dir', _useCustomDir);
+    await prefs.setString('custom_dir_path', _customDirController.text);
+
+    // Update AppState as well
+    appState.useCustomDir = _useCustomDir;
+    appState.customDirPath = _customDirController.text;
+  }
+
   @override
   void dispose() {
     _hostController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _customDirController.dispose();
     super.dispose();
   }
-  
+
   Future<void> _loadConnectionSettings() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _hostController.text = prefs.getString('qb_host') ?? 'http://localhost:8080';
+      _hostController.text =
+          prefs.getString('qb_host') ?? 'http://localhost:8080';
       _usernameController.text = prefs.getString('qb_username') ?? '';
       _passwordController.text = prefs.getString('qb_password') ?? '';
     });
   }
-  
+
   Future<void> _saveConnectionSettings() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('qb_host', _hostController.text);
     await prefs.setString('qb_username', _usernameController.text);
     await prefs.setString('qb_password', _passwordController.text);
   }
-  
-  Future<void> _loadSavedFiles() async {
+
+  // Load saved scraped anime lists
+  Future<void> _loadScrapedLists() async {
     try {
-      final files = await FileUtils.getSavedFiles();
-      setState(() {
-        _savedFiles = files;
-      });
+      final prefs = await SharedPreferences.getInstance();
+      final savedListsJson = prefs.getString('scraped_anime_lists');
+
+      if (savedListsJson != null) {
+        final Map<String, dynamic> savedListsMap = jsonDecode(savedListsJson);
+
+        setState(() {
+          _savedLists = Map.fromEntries(
+            savedListsMap.entries.map((entry) {
+              return MapEntry(
+                entry.key,
+                (entry.value as List)
+                    .map((item) => ScrapedAnime.fromJson(item))
+                    .toList(),
+              );
+            }),
+          );
+          _availableLists = _savedLists.keys.toList();
+        });
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error loading saved files: $e'),
+          content: Text('Error loading saved lists: $e'),
           backgroundColor: Colors.red,
         ),
       );
     }
   }
-  
+
   Future<void> _connectToQBittorrent() async {
     if (_hostController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,32 +154,32 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       );
       return;
     }
-    
+
     setState(() {
       _isConnecting = true;
       _connectionStatus = 'Connecting...';
     });
-    
+
     try {
       final qbClient = QBittorrentAPI(
         host: _hostController.text,
         username: _usernameController.text,
         password: _passwordController.text,
       );
-      
+
       final success = await qbClient.login();
-      
+
       if (success) {
         final version = await qbClient.getAppVersion();
-        
+
         setState(() {
           _connectionStatus = 'Connected to qBittorrent $version';
           _isConnecting = false;
         });
-        
+
         // Save settings on successful connection
         await _saveConnectionSettings();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Successfully connected to qBittorrent $version'),
@@ -120,10 +191,12 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
           _connectionStatus = 'Connection failed';
           _isConnecting = false;
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Failed to connect to qBittorrent. Check credentials and URL.'),
+            content: Text(
+              'Failed to connect to qBittorrent. Check credentials and URL.',
+            ),
             backgroundColor: Colors.red,
           ),
         );
@@ -133,7 +206,7 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
         _connectionStatus = 'Error: $e';
         _isConnecting = false;
       });
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error connecting to qBittorrent: $e'),
@@ -142,19 +215,37 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       );
     }
   }
-  
+
+  // Sanitizes a directory name for safe use across operating systems
+  String sanitizeDirectoryName(String name) {
+    // Replace characters that are problematic in file paths
+    return name
+        .replaceAll(':', '_')
+        .replaceAll('/', '_')
+        .replaceAll('\\', '_')
+        .replaceAll('<', '_')
+        .replaceAll('>', '_')
+        .replaceAll('"', '_')
+        .replaceAll('\'', '_')
+        .replaceAll('|', '_')
+        .replaceAll('?', '_')
+        .replaceAll('*', '_')
+        .replaceAll('&', 'and')
+        .trim();
+  }
+
   Future<void> _processAnimeList() async {
-    if (_selectedFile == null) {
+    if (_selectedListName == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a file first'),
+          content: Text('Please select a list first'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
-    
-    if (_connectionStatus.startsWith('Not connected') || 
+
+    if (_connectionStatus.startsWith('Not connected') ||
         _connectionStatus.startsWith('Connection failed') ||
         _connectionStatus.startsWith('Error')) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -165,7 +256,10 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       );
       return;
     }
-    
+
+    // Save custom directory settings
+    await _saveCustomDirSettings();
+
     setState(() {
       _isProcessing = true;
       _processingResults = {
@@ -174,31 +268,31 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
         'skipped': <String>[],
       };
     });
-    
+
     try {
-      // Load anime list from selected file
-      final animeList = await FileUtils.loadAnimeList(_selectedFile!);
-      
+      // Get the selected list of anime
+      final animeList = _savedLists[_selectedListName!] ?? [];
+
       if (animeList.isEmpty) {
         setState(() {
           _isProcessing = false;
         });
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Selected file contains no anime'),
+            content: Text('Selected list contains no anime'),
             backgroundColor: Colors.orange,
           ),
         );
         return;
       }
-      
+
       final qbClient = QBittorrentAPI(
         host: _hostController.text,
         username: _usernameController.text,
         password: _passwordController.text,
       );
-      
+
       // Login
       final loggedIn = await qbClient.login();
       if (!loggedIn) {
@@ -208,36 +302,61 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
         });
         return;
       }
-      
+
+      // Create season prefix for feed/rule names
+      final seasonPrefix = '${_selectedSeason.toUpperCase()}_${_selectedYear}_';
+
       // Process each anime
       for (final anime in animeList) {
         // Skip entries without valid RSS URL
         if (anime.rssUrl.isEmpty || !anime.rssUrl.startsWith('http')) {
-          _processingResults['skipped'].add('${anime.title} (No valid RSS URL)');
+          _processingResults['skipped'].add(
+            '${anime.title} (No valid RSS URL)',
+          );
           continue;
         }
-        
+
+        // Create sanitized anime title for directory name
+        final sanitizedTitle = sanitizeDirectoryName(anime.title);
+
+        // Create feed name with season prefix
+        final feedName = '$seasonPrefix${anime.title}';
+
         // Add RSS feed
-        final feedAdded = await qbClient.addFeed(anime.rssUrl, anime.title);
+        final feedAdded = await qbClient.addFeed(anime.rssUrl, feedName);
         if (!feedAdded) {
-          _processingResults['failed'].add('${anime.title} (Failed to add RSS feed)');
+          _processingResults['failed'].add(
+            '${anime.title} (Failed to add RSS feed)',
+          );
           continue;
         }
-        
-        // Add RSS rule
-        final ruleAdded = await qbClient.addRule(
-          anime.title,  // Rule name
-          anime.title,  // Must contain
-          '1-9999',    // Episode range
-          anime.title,  // Feed title
-        );
-        
-        if (ruleAdded) {
-          _processingResults['success'].add(anime.title);
+
+        // Determine save path
+        String? savePath;
+        if (_useCustomDir) {
+          final basePath = _customDirController.text.trim();
+          savePath = '$basePath/$sanitizedTitle';
         } else {
-          _processingResults['failed'].add('${anime.title} (Failed to add RSS rule)');
+          savePath = sanitizedTitle;
         }
-        
+
+        // Add RSS rule without must contain filter
+        final ruleAdded = await qbClient.addRuleWithSavePath(
+          '$seasonPrefix${anime.title}', // Rule name
+          feedName, // Feed title
+          savePath, // Save path
+        );
+
+        if (ruleAdded) {
+          _processingResults['success'].add(
+            '${anime.title} (Save path: $savePath)',
+          );
+        } else {
+          _processingResults['failed'].add(
+            '${anime.title} (Failed to add RSS rule)',
+          );
+        }
+
         // Update UI
         setState(() {});
       }
@@ -254,40 +373,13 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       });
     }
   }
-  
-  Future<void> _testSimpleConnection() async {
-    setState(() {
-      _isConnecting = true;
-      _connectionStatus = 'Testing connection...';
-    });
-    
-    try {
-      final qbClient = QBittorrentAPI(
-        host: _hostController.text,
-        username: _usernameController.text,
-        password: _passwordController.text,
-      );
-      
-      final result = await qbClient.testConnection();
-      
-      setState(() {
-        _connectionStatus = result['message'] as String? ?? 'Unknown result';
-        _isConnecting = false;
-      });
-    } catch (e) {
-      setState(() {
-        _connectionStatus = 'Connection test error: $e';
-        _isConnecting = false;
-      });
-    }
-  }
-  
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('qBittorrent Integration'),
-      ),
+      appBar: AppBar(title: const Text('qBittorrent Integration')),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -296,13 +388,10 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
             children: [
               const Text(
                 'Connection Settings',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              
+
               TextField(
                 controller: _hostController,
                 decoration: const InputDecoration(
@@ -311,24 +400,20 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              
+
               TextField(
                 controller: _usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                ),
+                decoration: const InputDecoration(labelText: 'Username'),
               ),
               const SizedBox(height: 12),
-              
+
               TextField(
                 controller: _passwordController,
                 obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Password',
-                ),
+                decoration: const InputDecoration(labelText: 'Password'),
               ),
               const SizedBox(height: 16),
-              
+
               Row(
                 children: [
                   Expanded(
@@ -341,87 +426,180 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              
+
               Text(
                 'Status: $_connectionStatus',
                 style: TextStyle(
-                  color: _connectionStatus.startsWith('Connected') 
-                      ? Colors.green 
-                      : Colors.grey,
+                  color:
+                      _connectionStatus.startsWith('Connected')
+                          ? Colors.green
+                          : Colors.grey,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              
+
               const Divider(height: 32),
-              
+
               const Text(
-                'Process Anime List',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                'Season Settings',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
-              
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Select Saved Anime List',
-                ),
-                value: _selectedFile,
-                items: _savedFiles.map((filename) {
-                  return DropdownMenuItem(
-                    value: filename,
-                    child: Text(
-                      filename.length > 40 
-                          ? '...${filename.substring(filename.length - 40)}' 
-                          : filename,
+
+              // Season and Year selection
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Anime Season',
+                      ),
+                      value: _selectedSeason,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'winter',
+                          child: Text('Winter'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'spring',
+                          child: Text('Spring'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'summer',
+                          child: Text('Summer'),
+                        ),
+                        DropdownMenuItem(value: 'fall', child: Text('Fall')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedSeason = value;
+                          });
+                        }
+                      },
                     ),
-                  );
-                }).toList(),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      decoration: const InputDecoration(labelText: 'Year'),
+                      value: _selectedYear,
+                      items: List.generate(
+                        5,
+                        (index) => DropdownMenuItem(
+                          value: DateTime.now().year - index,
+                          child: Text('${DateTime.now().year - index}'),
+                        ),
+                      ),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedYear = value;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+
+              // Custom directory settings
+              SwitchListTile(
+                title: const Text('Use Custom Save Directory'),
+                subtitle: const Text('Save to a specific base directory'),
+                value: _useCustomDir,
                 onChanged: (value) {
                   setState(() {
-                    _selectedFile = value;
+                    _useCustomDir = value;
+                  });
+                  // Save settings when toggled
+                  _saveCustomDirSettings();
+                },
+              ),
+
+              if (_useCustomDir) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _customDirController,
+                  decoration: InputDecoration(
+                    labelText: 'Base Directory Path',
+                    hintText: '/dl',
+                    helperText: _helperText, // Use the computed getter
+                  ),
+                  onChanged: (value) {
+                    // Trigger a rebuild to update the helper text
+                    setState(() {});
+                    // Save settings when text changes
+                    _saveCustomDirSettings();
+                  },
+                ),
+              ],
+
+              const Divider(height: 32),
+
+              const Text(
+                'Process Anime List',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 16),
+
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(
+                  labelText: 'Select Scraped Anime List',
+                  hintText: 'Choose a list',
+                ),
+                value: _selectedListName,
+                items:
+                    _availableLists.map((listName) {
+                      return DropdownMenuItem(
+                        value: listName,
+                        child: Text(
+                          listName.length > 40
+                              ? '...${listName.substring(listName.length - 40)}'
+                              : listName,
+                        ),
+                      );
+                    }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedListName = value;
                   });
                 },
               ),
               const SizedBox(height: 16),
-              
+
               Row(
                 children: [
                   Expanded(
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.upload_file),
-                      label: const Text('Process Selected List'),
-                      onPressed: _isProcessing || _selectedFile == null 
-                          ? null 
-                          : _processAnimeList,
+                      label: const Text('Add Selected List to qBittorrent'),
+                      onPressed:
+                          _isProcessing || _selectedListName == null
+                              ? null
+                              : _processAnimeList,
                     ),
                   ),
                 ],
               ),
-              
+
               if (_isProcessing)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16.0),
-                  child: Center(
-                    child: CircularProgressIndicator(),
-                  ),
+                  child: Center(child: CircularProgressIndicator()),
                 ),
-              
+
               if (_processingResults.isNotEmpty && !_isProcessing)
                 _buildResultsSection(),
-              
-              ElevatedButton(
-                onPressed: _isConnecting ? null : _testSimpleConnection,
-                child: const Text('Test Connection'),
-              ),
             ],
           ),
         ),
       ),
     );
   }
-  
+
   Widget _buildResultsSection() {
     return Card(
       margin: const EdgeInsets.only(top: 16),
@@ -432,10 +610,7 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
           children: [
             const Text(
               'Processing Results',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             _buildResultSection(
@@ -460,32 +635,23 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       ),
     );
   }
-  
+
   Widget _buildResultSection(String title, List<dynamic> items, Color color) {
     return ExpansionTile(
-      title: Text(
-        '$title (${items.length})',
-        style: TextStyle(color: color),
-      ),
+      title: Text('$title (${items.length})', style: TextStyle(color: color)),
       children: [
         if (items.isEmpty)
-          const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: Text('None'),
-          )
+          const Padding(padding: EdgeInsets.all(8.0), child: Text('None'))
         else
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: items.length,
             itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(items[index]),
-                dense: true,
-              );
+              return ListTile(title: Text(items[index]), dense: true);
             },
           ),
       ],
     );
   }
-} 
+}

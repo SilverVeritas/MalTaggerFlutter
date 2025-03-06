@@ -63,6 +63,66 @@ class QBittorrentAPI {
     }
   }
 
+  // Add this method inside the QBittorrentAPI class
+  Future<bool> addRuleWithSavePath(
+    String name,
+    String feedTitle,
+    String? savePath,
+  ) async {
+    try {
+      // Ensure we have a valid session
+      if (_sessionCookie == null) {
+        if (!await login()) return false;
+      }
+
+      final apiUrl = '$_baseUrl/api/v2/rss/setRule';
+
+      // Create rule definition without mustContain field
+      final ruleDefinition = jsonEncode({
+        'enabled': true,
+        'mustContain': '', // Empty - will match all entries
+        'mustNotContain': '',
+        'useRegex': false,
+        'episodeFilter': '', // No episode filter
+        'smartFilter': false,
+        'previouslyMatchedEpisodes': [],
+        'affectedFeeds': [feedTitle],
+        'ignoreDays': 0,
+        'lastMatch': '',
+        'addPaused': false,
+        'assignedCategory': '',
+        'savePath': savePath ?? '', // Set save path if provided
+      });
+
+      final response = await _client.post(
+        Uri.parse(apiUrl),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'ruleName': name, 'ruleDef': ruleDefinition},
+      );
+
+      // If unauthorized, try to login again
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (await login()) {
+          return addRuleWithSavePath(
+            name,
+            feedTitle,
+            savePath,
+          ); // Retry with new session
+        }
+        return false;
+      }
+
+      print('Add rule response: ${response.statusCode} - ${response.body}');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Failed to add rule: $e');
+      return false;
+    }
+  }
+
   Map<String, String> get _headers {
     final headers = <String, String>{
       'Referer': _baseUrl, // Required according to docs

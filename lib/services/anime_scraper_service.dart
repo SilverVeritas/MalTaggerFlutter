@@ -15,11 +15,6 @@ class AnimeScraperService {
   }
 
   // This function is now unused and can be removed
-  Future<List<ScrapedAnime>> scrapeAnimeFromUrl(String url) async {
-    return [];
-  }
-
-  // Updated to support filtering and progress tracking
   Future<List<ScrapedAnime>> scrapeFromMALSeasonalPage(
     String season,
     int year, {

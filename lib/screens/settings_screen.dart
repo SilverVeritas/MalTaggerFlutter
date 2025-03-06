@@ -19,6 +19,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isDarkMode = false;
   bool _showAdult = false;
   bool _isSettingsChanged = false;
+  bool _useCustomDir = false;
+  final TextEditingController _customDirController = TextEditingController();
 
   @override
   void initState() {
@@ -114,6 +116,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 24),
 
+          // QB Settings
+
           // Anime Settings
           const Text(
             'Anime Settings',
@@ -192,6 +196,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           const SizedBox(height: 24),
+
+          const Text(
+            'qBittorrent Download Settings',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const Divider(),
+          SwitchListTile(
+            title: const Text('Use Custom Save Directory'),
+            subtitle: const Text('Save to a specific base directory'),
+            value: _useCustomDir,
+            onChanged: (value) {
+              setState(() {
+                _useCustomDir = value;
+                _isSettingsChanged = true;
+              });
+            },
+          ),
+          if (_useCustomDir) ...[
+            const SizedBox(height: 8),
+            TextField(
+              controller: _customDirController,
+              decoration: InputDecoration(
+                labelText: 'Base Directory Path',
+                hintText: '/dl',
+                helperText:
+                    'Anime will be saved to "${_customDirController.text}/{animeName}"',
+              ),
+              onChanged: (_) => setState(() => _isSettingsChanged = true),
+            ),
+          ],
 
           // Save Button
           ElevatedButton(
