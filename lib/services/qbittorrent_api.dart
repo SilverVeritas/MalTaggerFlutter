@@ -284,6 +284,105 @@ class QBittorrentAPI {
     }
   }
 
+  Future<bool> deleteFeed(String feedPath) async {
+    try {
+      // Ensure we have a valid session
+      if (_sessionCookie == null) {
+        if (!await login()) return false;
+      }
+
+      final apiUrl = '$_baseUrl/api/v2/rss/removeItem';
+      final response = await _client.post(
+        Uri.parse(apiUrl),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'path': feedPath},
+      );
+
+      // If unauthorized, try to login again
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (await login()) {
+          return deleteFeed(feedPath); // Retry with new session
+        }
+        return false;
+      }
+
+      print('Delete feed response: ${response.statusCode} - ${response.body}');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Failed to delete feed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteRule(String ruleName) async {
+    try {
+      // Ensure we have a valid session
+      if (_sessionCookie == null) {
+        if (!await login()) return false;
+      }
+
+      final apiUrl = '$_baseUrl/api/v2/rss/removeRule';
+      final response = await _client.post(
+        Uri.parse(apiUrl),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'ruleName': ruleName},
+      );
+
+      // If unauthorized, try to login again
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (await login()) {
+          return deleteRule(ruleName); // Retry with new session
+        }
+        return false;
+      }
+
+      print('Delete rule response: ${response.statusCode} - ${response.body}');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Failed to delete rule: $e');
+      return false;
+    }
+  }
+
+  Future<bool> refreshFeed(String feedPath) async {
+    try {
+      // Ensure we have a valid session
+      if (_sessionCookie == null) {
+        if (!await login()) return false;
+      }
+
+      final apiUrl = '$_baseUrl/api/v2/rss/refreshItem';
+      final response = await _client.post(
+        Uri.parse(apiUrl),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'itemPath': feedPath},
+      );
+
+      // If unauthorized, try to login again
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (await login()) {
+          return refreshFeed(feedPath); // Retry with new session
+        }
+        return false;
+      }
+
+      print('Refresh feed response: ${response.statusCode} - ${response.body}');
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Failed to refresh feed: $e');
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> getRssFeeds() async {
     try {
       final url = '$_baseUrl/api/v2/rss/items';
