@@ -350,7 +350,7 @@ class QBittorrentAPI {
     }
   }
 
-  Future<bool> refreshFeed(String feedPath) async {
+  Future<bool> refreshItem(String feedPath) async {
     try {
       // Ensure we have a valid session
       if (_sessionCookie == null) {
@@ -370,7 +370,7 @@ class QBittorrentAPI {
       // If unauthorized, try to login again
       if (response.statusCode == 401 || response.statusCode == 403) {
         if (await login()) {
-          return refreshFeed(feedPath); // Retry with new session
+          return refreshItem(feedPath); // Retry with new session
         }
         return false;
       }

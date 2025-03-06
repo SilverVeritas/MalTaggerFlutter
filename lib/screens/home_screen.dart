@@ -1,44 +1,73 @@
 import 'package:flutter/material.dart';
-import '../models/anime.dart';
 import 'anime_scraper_screen.dart';
 import 'qbittorrent_add_screen.dart';
 import 'settings_screen.dart';
-import 'dashboard_screen.dart'; // Import the new dashboard screen
+import 'qbittorrent_dashboard_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Get theme colors
+    final primaryColor = Theme.of(context).colorScheme.primary;
+    final isLightMode = Theme.of(context).brightness == Brightness.light;
+
+    // Get screen dimensions
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Calculate image size based on screen width
+    // Min size of 120, max size of 200, with a scaling factor
+    final imageSize = screenWidth * 0.25.clamp(120.0, 200.0);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Anime Tracker')),
+      appBar: AppBar(title: const Text('MAL Pal')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // App logo or icon
-              Icon(
-                Icons.live_tv,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary,
+              // Using an asset image from your project with responsive sizing
+              Container(
+                width: imageSize,
+                height: imageSize,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryColor.withOpacity(0.3),
+                      spreadRadius: 2,
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(imageSize / 2),
+                  child: Image.asset(
+                    'assets/images/malpal_logo.webp', // Your image path
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
               const Text(
-                'Anime Tracker',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                'MAL Pal',
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Your anime management companion',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isLightMode ? Colors.black54 : Colors.white70,
+                ),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
 
               // Main navigation buttons
-              _buildNavigationButton(
-                context,
-                'Anime Library',
-                Icons.collections_bookmark,
-                () => Navigator.pushNamed(context, '/anime_library'),
-              ),
-              const SizedBox(height: 16),
               _buildNavigationButton(
                 context,
                 'Anime Scraper',
@@ -108,34 +137,6 @@ class HomeScreen extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 16),
         ),
         onPressed: onPressed,
-      ),
-    );
-  }
-}
-
-class AnimeListItem extends StatelessWidget {
-  final Anime anime;
-
-  const AnimeListItem({super.key, required this.anime});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      child: ListTile(
-        leading: Image.network(
-          anime.imageUrl,
-          width: 50,
-          height: 70,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-        ),
-        title: Text(anime.title),
-        subtitle: Text(
-          'Episodes: ${anime.episodes}\n'
-          'Status: ${anime.status}',
-        ),
-        isThreeLine: true,
       ),
     );
   }

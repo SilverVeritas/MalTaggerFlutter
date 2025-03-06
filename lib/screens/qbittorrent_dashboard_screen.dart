@@ -319,7 +319,8 @@ class _QBittorrentDashboardScreenState
     });
 
     try {
-      final success = await _qbClient!.refreshFeed(feedName);
+      // Changed refreshFeed to refreshItem to match the API method name
+      final success = await _qbClient!.refreshItem(feedName);
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(

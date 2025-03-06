@@ -23,29 +23,68 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, child) {
+        // Define custom colors
+        const primaryColor = Color(0xFF2e51a2);
+        final darkBgColor = const Color(0xFF1a1f2e);
+        final lightBgColor = const Color(0xFFf0f2f7);
+
         return MaterialApp(
-          title: 'Anime Tracker',
+          title: 'MAL Pal', // Updated app name
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
-              brightness:
-                  appState.isDarkMode ? Brightness.dark : Brightness.light,
+              seedColor: primaryColor,
+              brightness: Brightness.light,
+              primary: primaryColor,
+              primaryContainer: primaryColor.withOpacity(0.2),
+              secondary: const Color(0xFF2e6ea2),
+              background: lightBgColor,
+              surface: Colors.white,
+            ),
+            scaffoldBackgroundColor: lightBgColor,
+            cardColor: Colors.white,
+            appBarTheme: const AppBarTheme(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              elevation: 4,
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
             ),
             useMaterial3: true,
           ),
           darkTheme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.blue,
+              seedColor: primaryColor,
               brightness: Brightness.dark,
+              primary: primaryColor,
+              primaryContainer: primaryColor.withOpacity(0.2),
+              secondary: const Color(0xFF2e6ea2),
+              background: darkBgColor,
+              surface: const Color(0xFF252b3d),
+              onBackground: Colors.white.withOpacity(0.9),
+              onSurface: Colors.white.withOpacity(0.9),
+            ),
+            scaffoldBackgroundColor: darkBgColor,
+            cardColor: const Color(0xFF252b3d),
+            appBarTheme: AppBarTheme(
+              backgroundColor: primaryColor.withOpacity(0.8),
+              foregroundColor: Colors.white,
+              elevation: 4,
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+              ),
             ),
             useMaterial3: true,
           ),
           themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const MainNavigationScreen(),
           routes: {
-            '/anime_library':
-                (context) =>
-                    const HomeScreen(), // Update this to the correct screen
             '/anime_scraper': (context) => const AnimeScraperScreen(),
             '/qbittorrent_add': (context) => const QBittorrentAddScreen(),
             '/qbittorrent_dashboard':
@@ -82,25 +121,51 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Get the primary color from theme
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _pages),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: _onItemTapped,
-        destinations: const [
+        backgroundColor:
+            Theme.of(context).brightness == Brightness.dark
+                ? const Color(0xFF252b3d)
+                : Colors.white,
+        indicatorColor: primaryColor.withOpacity(0.2),
+        destinations: [
           NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Library',
+            icon: Icon(
+              Icons.home_outlined,
+              color:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : Colors.black54,
+            ),
+            selectedIcon: Icon(Icons.home, color: primaryColor),
+            label: 'Home', // Changed from 'Library' to 'Home'
           ),
           NavigationDestination(
-            icon: Icon(Icons.search_outlined),
-            selectedIcon: Icon(Icons.search),
+            icon: Icon(
+              Icons.search_outlined,
+              color:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : Colors.black54,
+            ),
+            selectedIcon: Icon(Icons.search, color: primaryColor),
             label: 'Discover',
           ),
           NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
+            icon: Icon(
+              Icons.settings_outlined,
+              color:
+                  Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white70
+                      : Colors.black54,
+            ),
+            selectedIcon: Icon(Icons.settings, color: primaryColor),
             label: 'Settings',
           ),
         ],
