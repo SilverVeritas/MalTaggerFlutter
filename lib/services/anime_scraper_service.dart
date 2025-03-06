@@ -26,7 +26,7 @@ class AnimeScraperService {
     int minMembers = 5000,
     bool excludeChinese = true,
     Function(int, int)? progressCallback,
-    String preferredFansubber = 'ember', // Add preferred fansubber parameter
+    String preferredFansubber = 'ember',
   }) async {
     final List<ScrapedAnime> filteredAnime = [];
     int currentPage = 1;
@@ -59,6 +59,42 @@ class AnimeScraperService {
         for (final anime in animeList) {
           // Apply filters
           if (_filterAnime(anime, minMembers, excludeChinese)) {
+            // Extract alternative titles
+            final alternativeTitles = <String>[];
+
+            // Check for English title first
+            if (anime['title_english'] != null &&
+                anime['title_english'] != anime['title']) {
+              alternativeTitles.add(anime['title_english']);
+            }
+
+            // Check titles array for additional titles
+            if (anime['titles'] != null) {
+              for (var titleObj in anime['titles']) {
+                String titleType = titleObj['type'] ?? '';
+                String title = titleObj['title'] ?? '';
+
+                // Skip if it's the same as main title or already in our list
+                if (title.isNotEmpty &&
+                    title != anime['title'] &&
+                    !alternativeTitles.contains(title)) {
+                  // Prioritize English titles and Synonyms
+                  if (titleType == 'English' && alternativeTitles.isEmpty) {
+                    // Add English title at the beginning if not already added
+                    alternativeTitles.insert(0, title);
+                  } else if (titleType == 'Synonym') {
+                    alternativeTitles.add(title);
+                  }
+                }
+              }
+            }
+
+            // Add Japanese title last if available and not already added
+            if (anime['title_japanese'] != null &&
+                !alternativeTitles.contains(anime['title_japanese'])) {
+              alternativeTitles.add(anime['title_japanese']);
+            }
+
             final scrapedAnime = ScrapedAnime(
               title: anime['title'] ?? '',
               imageUrl:
@@ -83,8 +119,9 @@ class AnimeScraperService {
                           .map<String>((g) => g['name'] as String)
                           .toList()
                       : null,
-              fansubber:
-                  preferredFansubber, // Use the provided preferred fansubber
+              fansubber: preferredFansubber,
+              alternativeTitles:
+                  alternativeTitles.isNotEmpty ? alternativeTitles : null,
             );
 
             // Generate initial RSS URL with preferred fansubber

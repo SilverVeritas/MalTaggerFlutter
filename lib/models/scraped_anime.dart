@@ -12,7 +12,8 @@ class ScrapedAnime {
   String? type;
   String? studio;
   List<String>? genres;
-  
+  List<String>? alternativeTitles; // Add this field
+
   ScrapedAnime({
     required this.title,
     required this.imageUrl,
@@ -27,8 +28,9 @@ class ScrapedAnime {
     this.type,
     this.studio,
     this.genres,
+    this.alternativeTitles,
   });
-  
+
   Map<String, dynamic> toJson() {
     return {
       'title': title,
@@ -44,9 +46,10 @@ class ScrapedAnime {
       'type': type,
       'studio': studio,
       'genres': genres,
+      'alternativeTitles': alternativeTitles, // Add this to JSON
     };
   }
-  
+
   factory ScrapedAnime.fromJson(Map<String, dynamic> json) {
     return ScrapedAnime(
       title: json['title'],
@@ -62,6 +65,10 @@ class ScrapedAnime {
       type: json['type'],
       studio: json['studio'],
       genres: json['genres'] != null ? List<String>.from(json['genres']) : null,
+      alternativeTitles:
+          json['alternativeTitles'] != null
+              ? List<String>.from(json['alternativeTitles'])
+              : null, // Parse from JSON
     );
   }
-} 
+}
