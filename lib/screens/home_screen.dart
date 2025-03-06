@@ -53,16 +53,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final primaryColor = Theme.of(context).colorScheme.primary;
     final isLightMode = Theme.of(context).brightness == Brightness.light;
 
-    // Get screen dimensions
-    final size = MediaQuery.of(context).size;
-    final screenWidth = size.width;
-    final screenHeight = size.height;
-
-    // Calculate image size based on screen dimensions
-    // Allow it to grow with the window, max 30% of the smaller dimension
-    final imageSize =
-        (screenWidth < screenHeight ? screenWidth : screenHeight) * 0.3;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -72,141 +62,164 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
-          return Center(
-            child: Container(
-              width: constraints.maxWidth,
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo with responsive sizing
-                  Container(
-                    width: imageSize,
-                    height: imageSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: primaryColor.withOpacity(0.3),
-                          spreadRadius: 2,
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(imageSize / 2),
-                      child: Image.asset(
-                        'assets/images/malpal_logo.webp',
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'MAL Pal',
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
+          // Calculate if we're in a constrained height situation
+          final bool isVerticallyConstrained = constraints.maxHeight < 600;
 
-                  // Kawaii message that cycles every 10 seconds
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 500),
-                    child: Container(
-                      key: ValueKey<int>(_currentMessageIndex),
-                      constraints: BoxConstraints(maxWidth: 600),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
+          // Calculate image size based on available space
+          final imageSize =
+              isVerticallyConstrained
+                  ? constraints.maxHeight *
+                      0.15 // Smaller image for constrained height
+                  : (constraints.maxWidth < constraints.maxHeight
+                          ? constraints.maxWidth
+                          : constraints.maxHeight) *
+                      0.3;
+
+          return SingleChildScrollView(
+            child: Center(
+              child: Container(
+                width: constraints.maxWidth,
+                padding: EdgeInsets.all(isVerticallyConstrained ? 12.0 : 24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Logo with responsive sizing
+                    Container(
+                      width: imageSize,
+                      height: imageSize,
                       decoration: BoxDecoration(
-                        color:
-                            isLightMode
-                                ? primaryColor.withOpacity(0.08)
-                                : primaryColor.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: primaryColor.withOpacity(0.3),
-                          width: 1.5,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withOpacity(0.3),
+                            spreadRadius: 2,
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(imageSize / 2),
+                        child: Image.asset(
+                          'assets/images/malpal_logo.webp',
+                          fit: BoxFit.cover,
                         ),
                       ),
-                      child: Text(
-                        _messages[_currentMessageIndex],
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
+                    ),
+                    SizedBox(height: isVerticallyConstrained ? 12 : 24),
+                    const Text(
+                      'MAL Pal',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: isVerticallyConstrained ? 6 : 12),
+
+                    // Kawaii message that cycles every 10 seconds
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 500),
+                      child: Container(
+                        key: ValueKey<int>(_currentMessageIndex),
+                        constraints: BoxConstraints(maxWidth: 600),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: isVerticallyConstrained ? 8 : 12,
+                        ),
+                        decoration: BoxDecoration(
                           color:
-                              isLightMode ? Colors.pink[700] : Colors.pink[300],
-                          letterSpacing: 0.3,
+                              isLightMode
+                                  ? primaryColor.withOpacity(0.08)
+                                  : primaryColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: primaryColor.withOpacity(0.3),
+                            width: 1.5,
+                          ),
                         ),
-                        textAlign: TextAlign.center,
+                        child: Text(
+                          _messages[_currentMessageIndex],
+                          style: TextStyle(
+                            fontSize: isVerticallyConstrained ? 14 : 16,
+                            fontWeight: FontWeight.w500,
+                            color:
+                                isLightMode
+                                    ? Colors.pink[700]
+                                    : Colors.pink[300],
+                            letterSpacing: 0.3,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
-                  ),
 
-                  const SizedBox(height: 48),
+                    SizedBox(height: isVerticallyConstrained ? 24 : 48),
 
-                  // Navigation buttons in a constrained container
-                  Container(
-                    constraints: BoxConstraints(
-                      maxWidth: 600,
-                    ), // Limit width of buttons
-                    child: Column(
-                      children: [
-                        _buildNavigationButton(
-                          context,
-                          'Anime Finder',
-                          Icons.search,
-                          () => Navigator.push(
+                    // Navigation buttons in a constrained container
+                    Container(
+                      constraints: BoxConstraints(maxWidth: 600),
+                      child: Column(
+                        children: [
+                          _buildNavigationButton(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => const AnimeScraperScreen(),
+                            'Anime Finder',
+                            Icons.search,
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => const AnimeScraperScreen(),
+                              ),
                             ),
+                            isVerticallyConstrained,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildNavigationButton(
-                          context,
-                          'qBittorrent',
-                          Icons.download,
-                          () => Navigator.push(
+                          SizedBox(height: isVerticallyConstrained ? 8 : 16),
+                          _buildNavigationButton(
                             context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => const QBittorrentAddScreen(),
+                            'qBittorrent',
+                            Icons.download,
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => const QBittorrentAddScreen(),
+                              ),
                             ),
+                            isVerticallyConstrained,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildNavigationButton(
-                          context,
-                          'Dashboard',
-                          Icons.dashboard,
-                          () => Navigator.push(
+                          SizedBox(height: isVerticallyConstrained ? 8 : 16),
+                          _buildNavigationButton(
                             context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) =>
-                                      const QBittorrentDashboardScreen(),
+                            'Dashboard',
+                            Icons.dashboard,
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) =>
+                                        const QBittorrentDashboardScreen(),
+                              ),
                             ),
+                            isVerticallyConstrained,
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildNavigationButton(
-                          context,
-                          'App Settings',
-                          Icons.settings,
-                          () => Navigator.push(
+                          SizedBox(height: isVerticallyConstrained ? 8 : 16),
+                          _buildNavigationButton(
                             context,
-                            MaterialPageRoute(
-                              builder: (context) => const SettingsScreen(),
+                            'App Settings',
+                            Icons.settings,
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const SettingsScreen(),
+                              ),
                             ),
+                            isVerticallyConstrained,
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -220,14 +233,15 @@ class _HomeScreenState extends State<HomeScreen> {
     String label,
     IconData icon,
     VoidCallback onPressed,
+    bool isCompact,
   ) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         icon: Icon(icon),
-        label: Text(label, style: const TextStyle(fontSize: 16)),
+        label: Text(label, style: TextStyle(fontSize: isCompact ? 14 : 16)),
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: EdgeInsets.symmetric(vertical: isCompact ? 10 : 16),
         ),
         onPressed: onPressed,
       ),

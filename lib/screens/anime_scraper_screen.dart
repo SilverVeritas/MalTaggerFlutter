@@ -1,17 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:malapp/constants.dart';
 import 'package:provider/provider.dart';
 import '../services/app_state.dart';
-import '../services/anime_scraper_service.dart';
 import '../models/scraped_anime.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import '../widgets/anime_item_card.dart';
 import '../widgets/json_editor_widget.dart';
-import '../utils/string_extensions.dart';
 import '../widgets/scraper_control_panel.dart';
 import '../widgets/anime_search_dialog.dart';
+import '../controllers/anime_scraper_controller.dart';
 
 class AnimeScraperScreen extends StatefulWidget {
   const AnimeScraperScreen({super.key});
@@ -21,32 +16,40 @@ class AnimeScraperScreen extends StatefulWidget {
 }
 
 class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
-  final TextEditingController _urlController = TextEditingController();
-  final TextEditingController _saveListNameController = TextEditingController();
-  final AnimeScraperService _scraperService = AnimeScraperService();
-  List<ScrapedAnime> _scrapedAnime = [];
+  // Controller instance
+  late AnimeScraperController _controller;
+
+  // UI state variables
   bool _isLoading = false;
-  String _progressText = '';
-  String _sortBy = 'members_high';
-  Map<String, List<ScrapedAnime>> _savedLists = {};
-  String? _selectedListName;
-  int _minMembers = 5000;
-  bool _excludeChinese = true;
-  bool _showJsonEditor = false;
-  int _selectedYear = DateTime.now().year;
-  String _selectedSeason = '';
   bool _isValidating = false;
   bool _shouldCancelValidation = false;
-  List<int> _selectedItems = [];
+  bool _showJsonEditor = false;
   bool _isMultiSelectMode = false;
+
+  // Data state variables
+  List<ScrapedAnime> _scrapedAnime = [];
+  Map<String, List<ScrapedAnime>> _savedLists = {};
+  List<int> _selectedItems = [];
+  String? _selectedListName;
   String _jsonText = '';
+  String _progressText = '';
+
+  // Filter and sort state
+  String _sortBy = 'members_high';
+  int _minMembers = 5000;
+  bool _excludeChinese = true;
+  int _selectedYear = DateTime.now().year;
+  String _selectedSeason = '';
 
   @override
   void initState() {
     super.initState();
-    _loadSavedLists();
+    _controller = AnimeScraperController();
+    _initializeScreen();
+  }
 
-    // Initialize the season to current season
+  Future<void> _initializeScreen() async {
+    // Initialize season to current season
     final now = DateTime.now();
     final month = now.month;
     if (month >= 1 && month <= 3) {
@@ -58,45 +61,32 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     } else {
       _selectedSeason = 'fall';
     }
+
+    // Load saved lists
+    await _loadSavedLists();
   }
 
   @override
   void dispose() {
-    _urlController.dispose();
-    _saveListNameController.dispose();
     super.dispose();
   }
 
+  // Load saved anime lists from shared preferences
   Future<void> _loadSavedLists() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedListsJson = prefs.getString('scraped_anime_lists');
-
-    if (savedListsJson != null) {
-      final Map<String, dynamic> savedListsMap = jsonDecode(savedListsJson);
-
+    try {
+      final loadedLists = await _controller.loadSavedLists();
       setState(() {
-        _savedLists = Map.fromEntries(
-          savedListsMap.entries.map((entry) {
-            return MapEntry(
-              entry.key,
-              (entry.value as List)
-                  .map((item) => ScrapedAnime.fromJson(item))
-                  .toList(),
-            );
-          }),
-        );
+        _savedLists = loadedLists;
+      });
+    } catch (e) {
+      // Handle error
+      setState(() {
+        _progressText = 'Error loading saved lists: $e';
       });
     }
   }
 
-  String _generateDefaultListName() {
-    final now = DateTime.now();
-    final season = _selectedSeason.capitalize();
-    final appState = Provider.of<AppState>(context, listen: false);
-    // Include preferred fansubber in the list name
-    return '${season}_${_selectedYear}_${appState.preferredFansubber}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}_${now.minute.toString().padLeft(2, '0')}';
-  }
-
+  // Save current anime list with a user-provided name
   Future<void> _saveCurrentList() async {
     if (_scrapedAnime.isEmpty) {
       ScaffoldMessenger.of(
@@ -105,99 +95,36 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
       return;
     }
 
-    // Set default list name
-    _saveListNameController.text = _generateDefaultListName();
-
-    await showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Save List'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _saveListNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'List Name',
-                    hintText: 'Enter a name for this list',
-                  ),
-                  autofocus: true,
-                  onChanged: (value) {
-                    // Validate input to only allow alphanumeric, underscore, and dash
-                    if (!RegExp(r'^[a-zA-Z0-9_-]*$').hasMatch(value)) {
-                      _saveListNameController.text = value.replaceAll(
-                        RegExp(r'[^a-zA-Z0-9_-]'),
-                        '',
-                      );
-                      _saveListNameController
-                          .selection = TextSelection.fromPosition(
-                        TextPosition(
-                          offset: _saveListNameController.text.length,
-                        ),
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Only letters, numbers, underscores, and dashes are allowed.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  final listName = _saveListNameController.text.trim();
-                  if (listName.isEmpty) {
-                    return;
-                  }
-
-                  // Save the list
-                  _savedLists[listName] = List.from(_scrapedAnime);
-
-                  // Save to shared preferences
-                  final prefs = await SharedPreferences.getInstance();
-                  final savedListsMap = Map.fromEntries(
-                    _savedLists.entries.map((entry) {
-                      return MapEntry(
-                        entry.key,
-                        entry.value.map((anime) => anime.toJson()).toList(),
-                      );
-                    }),
-                  );
-                  await prefs.setString(
-                    'scraped_anime_lists',
-                    jsonEncode(savedListsMap),
-                  );
-
-                  _saveListNameController.clear();
-                  Navigator.pop(context);
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('List "$listName" saved')),
-                  );
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          ),
+    final listName = await _controller.promptForListName(
+      context,
+      _selectedSeason,
+      _selectedYear,
     );
+    if (listName == null || listName.isEmpty) return;
+
+    try {
+      await _controller.saveAnimeList(listName, _scrapedAnime);
+
+      setState(() {
+        _savedLists[listName] = List.from(_scrapedAnime);
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('List "$listName" saved')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error saving list: $e')));
+    }
   }
 
+  // Load a previously saved list
   void _loadList(String listName) {
     if (_savedLists.containsKey(listName)) {
       setState(() {
-        // Create deep copies of the loaded anime to ensure we're not modifying the saved list directly
-        _scrapedAnime =
-            _savedLists[listName]!
-                .map((anime) => ScrapedAnime.fromJson(anime.toJson()))
-                .toList();
+        // Create deep copies to avoid modifying the saved list directly
+        _scrapedAnime = _controller.createDeepCopy(_savedLists[listName]!);
         _selectedListName = listName;
         _selectedItems = [];
         _isMultiSelectMode = false;
@@ -209,91 +136,51 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     }
   }
 
+  // Delete a saved list
   Future<void> _deleteList(String listName) async {
     // Show confirmation dialog
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: const Text('Confirm Delete'),
-                content: Text(
-                  'Are you sure you want to delete the list "$listName"?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('Delete'),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
+    final confirmed = await _controller.confirmAction(
+      context,
+      'Confirm Delete',
+      'Are you sure you want to delete the list "$listName"?',
+      'Delete',
+    );
 
     if (!confirmed) return;
 
-    setState(() {
-      // Remove the list from the saved lists
-      _savedLists.remove(listName);
+    try {
+      await _controller.deleteAnimeList(listName);
 
-      // If we're deleting the currently selected list, clear the current view
-      if (_selectedListName == listName) {
-        _selectedListName = null;
-        _scrapedAnime = []; // Clear the current anime list
-        _progressText = 'List "$listName" deleted. Screen cleared.';
-      } else {
-        _progressText = 'List "$listName" deleted.';
-      }
-    });
+      setState(() {
+        _savedLists.remove(listName);
 
-    // Save updated lists to shared preferences
-    final prefs = await SharedPreferences.getInstance();
-    final savedListsMap = Map.fromEntries(
-      _savedLists.entries.map((entry) {
-        return MapEntry(
-          entry.key,
-          entry.value.map((anime) => anime.toJson()).toList(),
-        );
-      }),
-    );
-    await prefs.setString('scraped_anime_lists', jsonEncode(savedListsMap));
+        if (_selectedListName == listName) {
+          _selectedListName = null;
+          _scrapedAnime = [];
+          _progressText = 'List "$listName" deleted. Screen cleared.';
+        } else {
+          _progressText = 'List "$listName" deleted.';
+        }
+      });
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('List "$listName" deleted')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('List "$listName" deleted')));
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error deleting list: $e')));
+    }
   }
 
-  // Handle single entry deletion
+  // Delete a single anime entry
   Future<void> _deleteAnimeEntry(int index) async {
-    // Show confirmation dialog
-    final confirmed =
-        await showDialog<bool>(
-          context: context,
-          builder:
-              (context) => AlertDialog(
-                title: const Text('Confirm Delete'),
-                content: Text(
-                  'Are you sure you want to delete "${_scrapedAnime[index].title}"?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red),
-                    child: const Text('Delete'),
-                  ),
-                ],
-              ),
-        ) ??
-        false;
+    final confirmed = await _controller.confirmAction(
+      context,
+      'Confirm Delete',
+      'Are you sure you want to delete "${_scrapedAnime[index].title}"?',
+      'Delete',
+    );
 
     if (!confirmed) return;
 
@@ -303,7 +190,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
       // Update the saved list if we're working with one
       if (_selectedListName != null) {
         _savedLists[_selectedListName!] = List.from(_scrapedAnime);
-        _saveUpdatedLists();
+        _controller.saveUpdatedLists(_savedLists);
       }
     });
 
@@ -312,20 +199,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     ).showSnackBar(const SnackBar(content: Text('Entry deleted')));
   }
 
-  // Helper method to save updated lists to SharedPreferences
-  Future<void> _saveUpdatedLists() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedListsMap = Map.fromEntries(
-      _savedLists.entries.map((entry) {
-        return MapEntry(
-          entry.key,
-          entry.value.map((anime) => anime.toJson()).toList(),
-        );
-      }),
-    );
-    await prefs.setString('scraped_anime_lists', jsonEncode(savedListsMap));
-  }
-
+  // Fetch anime for the selected season/year
   Future<void> _fetchAnime(AppState appState) async {
     if (!mounted) return;
 
@@ -338,37 +212,24 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     });
 
     try {
-      // Create a flag to track if operation was canceled
-      bool canceled = false;
-
-      // Get the preferred fansubber from app state
-      final preferredFansubber = appState.preferredFansubber;
-
-      // Use the selected season and year instead of the app state, and pass the preferred fansubber
-      final scrapedAnime = await _scraperService.scrapeFromMALSeasonalPage(
+      final scrapedAnime = await _controller.fetchAnimeForSeason(
         _selectedSeason,
         _selectedYear,
         minMembers: _minMembers,
         excludeChinese: _excludeChinese,
-        preferredFansubber: preferredFansubber, // Pass the preferred fansubber
+        preferredFansubber: appState.preferredFansubber,
         progressCallback: (current, total) {
-          if (!mounted) {
-            canceled = true; // Mark as canceled if no longer mounted
-            return;
-          }
+          if (!mounted) return;
           setState(() {
             _progressText = 'Fetching page $current of $total...';
           });
         },
       );
 
-      // If operation was canceled or widget is no longer mounted, exit early
-      if (canceled || !mounted) return;
+      if (!mounted) return;
 
       setState(() {
         _scrapedAnime = scrapedAnime;
-
-        // Apply the selected sort
         _sortAnimeList();
 
         if (_scrapedAnime.isEmpty) {
@@ -379,7 +240,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      if (!mounted) return; // Check if widget is still mounted
+      if (!mounted) return;
 
       setState(() {
         _progressText = 'Error: ${e.toString()}';
@@ -388,6 +249,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     }
   }
 
+  // Validate all RSS feeds
   Future<void> _validateAllRss() async {
     if (!mounted) return;
 
@@ -399,61 +261,25 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     });
 
     try {
-      final results = <String, bool>{};
-      final episodeCounts = <String, int>{};
       final appState = Provider.of<AppState>(context, listen: false);
 
-      int validated = 0;
-      final total = _scrapedAnime.length;
-
-      for (final anime in _scrapedAnime) {
-        // Check if widget is still mounted or if cancellation was requested
-        if (!mounted || _shouldCancelValidation) {
+      final results = await _controller.validateAllRssFeeds(
+        _scrapedAnime,
+        appState,
+        onProgress: (validated, total) {
           if (mounted) {
             setState(() {
-              _progressText =
-                  'Validation cancelled after $validated of $total RSS feeds';
-              _isLoading = false;
-              _isValidating = false;
+              _progressText = 'Validating RSS feeds ($validated/$total)...';
             });
           }
-          return;
-        }
-
-        final index = _scrapedAnime.indexOf(anime);
-        final originalTitle = anime.title;
-        final rssUrl = appState.getEditedRssUrl(
-          originalTitle,
-          index,
-          anime.rssUrl,
-        );
-
-        if (mounted) {
-          setState(() {
-            _progressText = 'Validating RSS feeds (${validated + 1}/$total)...';
-          });
-        }
-
-        final (isValid, episodeCount) = await _scraperService.validateRssFeed(
-          rssUrl,
-        );
-        results[rssUrl] = isValid;
-        if (episodeCount != null) {
-          episodeCounts[rssUrl] = episodeCount;
-        }
-
-        appState.setRssValidationResult(rssUrl, isValid, episodeCount);
-
-        validated++;
-
-        // Add a small delay to avoid overloading servers
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
+        },
+        shouldCancel: () => _shouldCancelValidation || !mounted,
+      );
 
       if (mounted && !_shouldCancelValidation) {
         setState(() {
           _progressText =
-              'RSS validation complete. Valid: ${results.values.where((v) => v).length}/${results.length}';
+              'RSS validation complete. Valid: ${results['valid']}/${results['total']}';
           _isLoading = false;
           _isValidating = false;
         });
@@ -476,6 +302,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     });
   }
 
+  // Selection management
   void _toggleSelectItem(int index) {
     setState(() {
       if (_selectedItems.contains(index)) {
@@ -500,31 +327,18 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
 
   void _deleteSelectedItems() {
     // Show confirmation dialog
-    showDialog<bool>(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Confirm Delete'),
-            content: Text(
-              'Are you sure you want to delete ${_selectedItems.length} selected items?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-    ).then((confirmed) {
-      if (confirmed == true) {
-        _performDeleteSelectedItems();
-      }
-    });
+    _controller
+        .confirmAction(
+          context,
+          'Confirm Delete',
+          'Are you sure you want to delete ${_selectedItems.length} selected items?',
+          'Delete',
+        )
+        .then((confirmed) {
+          if (confirmed) {
+            _performDeleteSelectedItems();
+          }
+        });
   }
 
   void _performDeleteSelectedItems() {
@@ -543,7 +357,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
       // Update the saved list if we're working with one
       if (_selectedListName != null) {
         _savedLists[_selectedListName!] = List.from(_scrapedAnime);
-        _saveUpdatedLists();
+        _controller.saveUpdatedLists(_savedLists);
       }
 
       if (_scrapedAnime.isEmpty) {
@@ -554,6 +368,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     });
   }
 
+  // Add anime manually via dialog
   void _addAnimeManually() {
     showDialog(
       context: context,
@@ -579,7 +394,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     );
   }
 
-  // Add this method to fetch anime data from MAL ID
+  // Fetch anime details from MAL ID
   Future<void> _fetchAnimeFromMalId(int malId) async {
     if (!mounted) return;
 
@@ -589,95 +404,11 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
 
     try {
       final appState = Provider.of<AppState>(context, listen: false);
-
-      // Use Jikan API to get anime details
-      final url = '$kJikanApiBaseUrl/anime/$malId';
-      final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to load anime: ${response.statusCode}');
-      }
-
-      final data = json.decode(response.body);
-      final animeData = data['data'];
-
-      if (animeData == null) {
-        throw Exception('Anime data not found');
-      }
-
-      // Extract alternative titles
-      final alternativeTitles = <String>[];
-
-      // Check for English title first
-      if (animeData['title_english'] != null &&
-          animeData['title_english'] != animeData['title']) {
-        alternativeTitles.add(animeData['title_english']);
-      }
-
-      // Check titles array for additional titles
-      if (animeData['titles'] != null) {
-        for (var titleObj in animeData['titles']) {
-          String titleType = titleObj['type'] ?? '';
-          String title = titleObj['title'] ?? '';
-
-          // Skip if it's the same as main title or already in our list
-          if (title.isNotEmpty &&
-              title != animeData['title'] &&
-              !alternativeTitles.contains(title)) {
-            // Prioritize English titles and Synonyms
-            if (titleType == 'English' && alternativeTitles.isEmpty) {
-              // Add English title at the beginning if not already added
-              alternativeTitles.insert(0, title);
-            } else if (titleType == 'Synonym') {
-              alternativeTitles.add(title);
-            }
-          }
-        }
-      }
-
-      // Add Japanese title last if available and not already added
-      if (animeData['title_japanese'] != null &&
-          !alternativeTitles.contains(animeData['title_japanese'])) {
-        alternativeTitles.add(animeData['title_japanese']);
-      }
-
-      // Create ScrapedAnime object from response
-      final anime = ScrapedAnime(
-        title: animeData['title'] ?? '',
-        imageUrl:
-            animeData['images']?['jpg']?['large_image_url'] ??
-            animeData['images']?['jpg']?['image_url'] ??
-            '',
-        episodes: animeData['episodes']?.toString(),
-        malId: animeData['mal_id'],
-        synopsis: animeData['synopsis'],
-        members: animeData['members'],
-        releaseDate: animeData['aired']?['string'],
-        score: animeData['score']?.toDouble(),
-        type: animeData['type'],
-        studio:
-            animeData['studios'] != null &&
-                    (animeData['studios'] as List).isNotEmpty
-                ? animeData['studios'][0]['name']
-                : null,
-        genres:
-            animeData['genres'] != null
-                ? (animeData['genres'] as List)
-                    .map<String>((g) => g['name'] as String)
-                    .toList()
-                : null,
-        fansubber: appState.preferredFansubber,
-        alternativeTitles:
-            alternativeTitles.isNotEmpty ? alternativeTitles : null,
+      final anime = await _controller.fetchAnimeById(
+        malId,
+        appState.preferredFansubber,
       );
 
-      // Generate RSS URL
-      anime.rssUrl = _scraperService.generateRssUrl(
-        anime.title,
-        anime.fansubber,
-      );
-
-      // Add to list
       if (mounted) {
         setState(() {
           _scrapedAnime.add(anime);
@@ -686,7 +417,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
           // If we have a selected list, update it
           if (_selectedListName != null) {
             _savedLists[_selectedListName!] = List.from(_scrapedAnime);
-            _saveUpdatedLists();
+            _controller.saveUpdatedLists(_savedLists);
           }
         });
       }
@@ -700,49 +431,17 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     }
   }
 
+  // Sort the anime list
   void _sortAnimeList() {
     setState(() {
-      switch (_sortBy) {
-        case 'alpha':
-          _scrapedAnime.sort((a, b) => a.title.compareTo(b.title));
-          break;
-        case 'alpha_reverse':
-          _scrapedAnime.sort((a, b) => b.title.compareTo(a.title));
-          break;
-        case 'members_high':
-          _scrapedAnime.sort(
-            (a, b) => (b.members ?? 0).compareTo(a.members ?? 0),
-          );
-          break;
-        case 'members_low':
-          _scrapedAnime.sort(
-            (a, b) => (a.members ?? 0).compareTo(b.members ?? 0),
-          );
-          break;
-        case 'date_newest':
-          _scrapedAnime.sort((a, b) {
-            if (a.releaseDate == null) return 1;
-            if (b.releaseDate == null) return -1;
-            return b.releaseDate!.compareTo(a.releaseDate!);
-          });
-          break;
-        case 'date_oldest':
-          _scrapedAnime.sort((a, b) {
-            if (a.releaseDate == null) return 1;
-            if (b.releaseDate == null) return -1;
-            return a.releaseDate!.compareTo(b.releaseDate!);
-          });
-          break;
-      }
+      _controller.sortAnimeList(_scrapedAnime, _sortBy);
     });
   }
 
-  // JSON Editor management
+  // JSON Editor functions
   Widget _buildJsonEditor() {
     // Convert ScrapedAnime list to JSON string with indentation
-    final jsonString = JsonEncoder.withIndent(
-      '  ',
-    ).convert(_scrapedAnime.map((anime) => anime.toJson()).toList());
+    final jsonString = _controller.animeListToJson(_scrapedAnime);
 
     return JsonEditorWidget(
       initialJson: jsonString,
@@ -755,9 +454,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
 
   void _applyJsonChanges() {
     try {
-      final jsonData = json.decode(_jsonText) as List;
-      final newAnimeList =
-          jsonData.map((item) => ScrapedAnime.fromJson(item)).toList();
+      final newAnimeList = _controller.jsonToAnimeList(_jsonText);
 
       setState(() {
         _scrapedAnime = newAnimeList;
@@ -766,7 +463,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
         // Update the saved list if we're working with one
         if (_selectedListName != null) {
           _savedLists[_selectedListName!] = List.from(_scrapedAnime);
-          _saveUpdatedLists();
+          _controller.saveUpdatedLists(_savedLists);
         }
       });
 
@@ -780,7 +477,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
     }
   }
 
-  // Anime list building
+  // Build anime list widget
   Widget _buildAnimeList() {
     if (_scrapedAnime.isEmpty) {
       return const Center(
@@ -801,7 +498,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
           isSelectionMode: _isMultiSelectMode,
           onSelect: () => _toggleSelectItem(index),
           onDelete: () => _deleteAnimeEntry(index),
-          scraperService: _scraperService,
+          scraperService: _controller.scraperService,
           onTitleChanged: (newValue) {
             setState(() {
               anime.title = newValue;
@@ -811,7 +508,7 @@ class _AnimeScraperScreenState extends State<AnimeScraperScreen> {
             setState(() {
               anime.fansubber = newValue;
               // Update RSS URL when fansubber changes
-              anime.rssUrl = _scraperService.generateRssUrl(
+              anime.rssUrl = _controller.scraperService.generateRssUrl(
                 anime.title,
                 newValue,
               );

@@ -66,6 +66,9 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
   final TextEditingController _minMembersController = TextEditingController();
   final FocusNode _minMembersFocusNode = FocusNode();
 
+  // Add a state variable to track if filter options are expanded
+  bool _showFilterOptions = false;
+
   @override
   void initState() {
     super.initState();
@@ -99,9 +102,10 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
     final theme = Theme.of(context);
 
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Fetch and Sort row
+        // Top row with fetch button, sort dropdown, and expand/collapse toggle
         Row(
           children: [
             Expanded(
@@ -125,55 +129,95 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
             ),
             const SizedBox(width: 12),
             _buildSortDropdown(theme),
+            IconButton(
+              icon: Icon(
+                _showFilterOptions ? Icons.expand_less : Icons.expand_more,
+              ),
+              tooltip: _showFilterOptions ? 'Hide Filters' : 'Show Filters',
+              onPressed: () {
+                setState(() {
+                  _showFilterOptions = !_showFilterOptions;
+                });
+              },
+            ),
           ],
         ),
-        const SizedBox(height: 16),
 
-        // Filter options with improved styling
-        Text(
-          'Filter Options',
-          style: theme.textTheme.titleMedium?.copyWith(
-            color:
-                theme.brightness == Brightness.dark
-                    ? Colors.white
-                    : theme.colorScheme.primary,
+        // Filter section (collapsible)
+        if (_showFilterOptions) ...[
+          const SizedBox(height: 12),
+
+          // Filter options heading with improved styling
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.filter_list,
+                  size: 18,
+                  color:
+                      theme.brightness == Brightness.dark
+                          ? Colors.white70
+                          : theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Filter Options',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color:
+                        theme.brightness == Brightness.dark
+                            ? Colors.white
+                            : theme.colorScheme.primary,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
 
-        // Filter controls
-        _buildFilterControls(context, theme),
-        const SizedBox(height: 16),
+          // Filter controls in more compact form
+          _buildCompactFilterControls(context, theme),
+          const SizedBox(height: 12),
 
-        // Season and year selection
-        _buildSeasonYearSelector(theme),
-        const SizedBox(height: 16),
+          // Season and year selection in a more compact row
+          _buildCompactSeasonYearSelector(theme),
+          const SizedBox(height: 12),
+        ],
 
-        // Multi-select action bar
+        // Always visible section - status, multi-select actions, validation
+
+        // Multi-select action bar (when in selection mode)
         if (widget.isMultiSelectMode && widget.selectedItems > 0)
           _buildSelectionActionBar(theme),
 
-        // Validation button (when not in multi-select mode)
-        if (widget.hasAnimeList && !widget.isMultiSelectMode)
+        // Validation button (when not in multi-select mode and has anime list)
+        if (widget.hasAnimeList &&
+            !widget.isMultiSelectMode &&
+            !widget.isValidating)
           _buildValidationButton(),
 
-        // Status message
+        // Validation button when active
+        if (widget.isValidating) _buildCancelValidationButton(),
+
+        // Status message - always visible
         if (widget.progressText.isNotEmpty) _buildStatusMessage(theme),
 
-        // Saved lists selector
+        // Saved lists selector - always visible
         if (widget.savedLists.isNotEmpty) _buildSavedListsSelector(theme),
       ],
     );
   }
 
-  Widget _buildFilterControls(BuildContext context, ThemeData theme) {
+  // More compact filter controls in a single row
+  Widget _buildCompactFilterControls(BuildContext context, ThemeData theme) {
     return Row(
       children: [
+        // Min Members control
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Min Members text/input field
               GestureDetector(
                 onTap: () {
                   setState(() {
@@ -230,40 +274,191 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
                           style: theme.textTheme.bodyMedium?.copyWith(
                             decoration: TextDecoration.underline,
                             decorationStyle: TextDecorationStyle.dotted,
+                            fontSize: 13,
                           ),
                         ),
               ),
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  activeTrackColor: theme.colorScheme.primary,
-                  inactiveTrackColor: theme.colorScheme.primaryContainer
-                      .withOpacity(0.3),
-                  thumbColor: theme.colorScheme.primary,
-                ),
-                child: Slider(
-                  value: widget.minMembers.toDouble(),
-                  min: 0,
-                  max: 200000,
-                  divisions: 40, // 5,000 increments
-                  onChanged: widget.onMinMembersChanged,
+              SizedBox(
+                height: 24,
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: theme.colorScheme.primary,
+                    inactiveTrackColor: theme.colorScheme.primaryContainer
+                        .withOpacity(0.3),
+                    thumbColor: theme.colorScheme.primary,
+                    trackHeight: 4,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 8,
+                    ),
+                  ),
+                  child: Slider(
+                    value: widget.minMembers.toDouble(),
+                    min: 0,
+                    max: 200000,
+                    divisions: 40, // 5,000 increments
+                    onChanged: widget.onMinMembersChanged,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+
+        // Exclude Chinese switch
+        Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text('Exclude Chinese', style: theme.textTheme.bodyMedium),
-            Switch(
-              value: widget.excludeChinese,
-              activeColor: theme.colorScheme.primary,
-              onChanged: widget.onExcludeChineseChanged,
+            Text(
+              'Exclude Chinese',
+              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 13),
+            ),
+            Transform.scale(
+              scale: 0.8,
+              child: Switch(
+                value: widget.excludeChinese,
+                activeColor: theme.colorScheme.primary,
+                onChanged: widget.onExcludeChineseChanged,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
             ),
           ],
         ),
       ],
+    );
+  }
+
+  // Compact season and year selector
+  Widget _buildCompactSeasonYearSelector(ThemeData theme) {
+    final currentYear = DateTime.now().year;
+
+    return Row(
+      children: [
+        // Season dropdown
+        Expanded(
+          child: Row(
+            children: [
+              Text(
+                'Season:',
+                style: TextStyle(
+                  color:
+                      theme.brightness == Brightness.dark
+                          ? Colors.white.withOpacity(0.9)
+                          : theme.colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withOpacity(0.3),
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    color: theme.colorScheme.surface,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: DropdownButton<String>(
+                    value: widget.selectedSeason,
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    dropdownColor: theme.cardColor,
+                    isDense: true,
+                    items: const [
+                      DropdownMenuItem(value: 'winter', child: Text('Winter')),
+                      DropdownMenuItem(value: 'spring', child: Text('Spring')),
+                      DropdownMenuItem(value: 'summer', child: Text('Summer')),
+                      DropdownMenuItem(value: 'fall', child: Text('Fall')),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        widget.onSeasonChanged(value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+
+        // Year dropdown
+        Expanded(
+          child: Row(
+            children: [
+              Text(
+                'Year:',
+                style: TextStyle(
+                  color:
+                      theme.brightness == Brightness.dark
+                          ? Colors.white.withOpacity(0.9)
+                          : theme.colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: 36,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: theme.colorScheme.outline.withOpacity(0.3),
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    color: theme.colorScheme.surface,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: DropdownButton<int>(
+                    value: widget.selectedYear,
+                    isExpanded: true,
+                    underline: const SizedBox(),
+                    dropdownColor: theme.cardColor,
+                    isDense: true,
+                    items: List.generate(
+                      currentYear - 1959, // From current year to 1960
+                      (index) {
+                        final year = currentYear - index;
+                        return DropdownMenuItem(
+                          value: year,
+                          child: Text(year.toString()),
+                        );
+                      },
+                    ),
+                    onChanged: (value) {
+                      if (value != null) {
+                        widget.onYearChanged(value);
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Cancel validation button
+  Widget _buildCancelValidationButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red[700],
+          foregroundColor: Colors.white,
+        ),
+        onPressed: widget.onCancelValidation,
+        icon: const Icon(Icons.stop, color: Colors.white),
+        label: const Text(
+          'Stop Validation',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
     );
   }
 
@@ -275,139 +470,56 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
     );
   }
 
-  // Rest of the methods remain the same
+  // Rest of your methods...
   Widget _buildSortDropdown(ThemeData theme) {
-    // Implementation unchanged
     return Container(
+      height: 40,
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer.withOpacity(0.3),
         borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: theme.colorScheme.outline.withOpacity(0.2)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: DropdownButton<String>(
-        value: widget.sortBy,
-        underline: const SizedBox(),
-        icon: const Icon(Icons.sort),
-        dropdownColor: theme.cardColor,
-        borderRadius: BorderRadius.circular(8),
-        items: const [
-          DropdownMenuItem(value: 'alpha', child: Text('A-Z')),
-          DropdownMenuItem(value: 'alpha_reverse', child: Text('Z-A')),
-          DropdownMenuItem(value: 'members_high', child: Text('Members ↓')),
-          DropdownMenuItem(value: 'members_low', child: Text('Members ↑')),
-          DropdownMenuItem(value: 'date_newest', child: Text('Newest First')),
-          DropdownMenuItem(value: 'date_oldest', child: Text('Oldest First')),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.sort,
+            size: 18,
+            color: theme.colorScheme.onSurface.withOpacity(0.7),
+          ),
+          DropdownButton<String>(
+            value: widget.sortBy,
+            underline: const SizedBox(),
+            icon: const Icon(Icons.arrow_drop_down, size: 18),
+            dropdownColor: theme.cardColor,
+            borderRadius: BorderRadius.circular(8),
+            isDense: true,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            alignment: Alignment.center,
+            items: const [
+              DropdownMenuItem(value: 'alpha', child: Text('A-Z')),
+              DropdownMenuItem(value: 'alpha_reverse', child: Text('Z-A')),
+              DropdownMenuItem(value: 'members_high', child: Text('Members ↓')),
+              DropdownMenuItem(value: 'members_low', child: Text('Members ↑')),
+              DropdownMenuItem(
+                value: 'date_newest',
+                child: Text('Newest First'),
+              ),
+              DropdownMenuItem(
+                value: 'date_oldest',
+                child: Text('Oldest First'),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                widget.onSortChanged(value);
+              }
+            },
+          ),
         ],
-        onChanged: (value) {
-          if (value != null) {
-            widget.onSortChanged(value);
-          }
-        },
       ),
-    );
-  }
-
-  Widget _buildSeasonYearSelector(ThemeData theme) {
-    final currentYear = DateTime.now().year;
-
-    return Row(
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Season:',
-                style: TextStyle(
-                  color:
-                      theme.brightness == Brightness.dark
-                          ? Colors.white.withOpacity(0.9)
-                          : theme.colorScheme.primary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: theme.colorScheme.outline.withOpacity(0.3),
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  color: theme.colorScheme.surface,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: DropdownButton<String>(
-                  value: widget.selectedSeason,
-                  isExpanded: true,
-                  underline: const SizedBox(),
-                  dropdownColor: theme.cardColor,
-                  items: const [
-                    DropdownMenuItem(value: 'winter', child: Text('Winter')),
-                    DropdownMenuItem(value: 'spring', child: Text('Spring')),
-                    DropdownMenuItem(value: 'summer', child: Text('Summer')),
-                    DropdownMenuItem(value: 'fall', child: Text('Fall')),
-                  ],
-                  onChanged: (value) {
-                    if (value != null) {
-                      widget.onSeasonChanged(value);
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Year:',
-                style: TextStyle(
-                  color:
-                      theme.brightness == Brightness.dark
-                          ? Colors.white.withOpacity(0.9)
-                          : theme.colorScheme.primary,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(
-                  border: Border.all(
-                    color: theme.colorScheme.outline.withOpacity(0.3),
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                  color: theme.colorScheme.surface,
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: DropdownButton<int>(
-                  value: widget.selectedYear,
-                  isExpanded: true,
-                  underline: const SizedBox(),
-                  dropdownColor: theme.cardColor,
-                  items: List.generate(
-                    currentYear - 1959, // From current year to 1960
-                    (index) {
-                      final year = currentYear - index;
-                      return DropdownMenuItem(
-                        value: year,
-                        child: Text(year.toString()),
-                      );
-                    },
-                  ),
-                  onChanged: (value) {
-                    if (value != null) {
-                      widget.onYearChanged(value);
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 
@@ -446,23 +558,14 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
           Expanded(
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    widget.isValidating ? Colors.red[700] : Colors.blue[700],
+                backgroundColor: Colors.blue[700],
                 foregroundColor: Colors.white,
               ),
-              onPressed:
-                  widget.isLoading
-                      ? null
-                      : (widget.isValidating
-                          ? widget.onCancelValidation
-                          : widget.onValidateAllRss),
-              icon: Icon(
-                widget.isValidating ? Icons.stop : Icons.check_circle,
-                color: Colors.white,
-              ),
-              label: Text(
-                widget.isValidating ? 'Stop Validation' : 'Validate All RSS',
-                style: const TextStyle(
+              onPressed: widget.isLoading ? null : widget.onValidateAllRss,
+              icon: const Icon(Icons.check_circle, color: Colors.white),
+              label: const Text(
+                'Validate All RSS',
+                style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
@@ -493,7 +596,7 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
 
   Widget _buildStatusMessage(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16.0),
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(8),
@@ -513,7 +616,7 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
 
   Widget _buildSavedListsSelector(ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16.0),
+      padding: const EdgeInsets.only(top: 8.0, bottom: 8.0),
       child: Row(
         children: [
           Icon(Icons.folder_open, color: theme.colorScheme.primary, size: 20),

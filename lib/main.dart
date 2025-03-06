@@ -1,3 +1,4 @@
+// File: lib/main.dart
 import 'package:flutter/material.dart';
 import './screens/home_screen.dart';
 import './screens/anime_scraper_screen.dart';
@@ -6,6 +7,7 @@ import './screens/qbittorrent_dashboard_screen.dart';
 import './screens/settings_screen.dart';
 import './services/app_state.dart';
 import 'package:provider/provider.dart';
+import './utils/text_size_utils.dart';
 
 void main() {
   runApp(
@@ -30,6 +32,15 @@ class MyApp extends StatelessWidget {
 
         return MaterialApp(
           title: 'MAL Pal', // Updated app name
+          // Apply text scaling based on user preference
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: context.getTextScaler(appState.textSizePreference),
+              ),
+              child: child!,
+            );
+          },
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
               seedColor: primaryColor,

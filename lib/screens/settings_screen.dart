@@ -1,8 +1,10 @@
+// File: lib/screens/settings_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/app_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants.dart';
+import '../utils/text_size_utils.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -20,6 +22,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _showAdult = false;
   bool _isSettingsChanged = false;
   bool _useCustomDir = false;
+  String _textSizePreference = 'small'; // New text size preference
   final TextEditingController _customDirController = TextEditingController();
 
   @override
@@ -57,6 +60,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // Also ensure these match what's in AppState
       _useCustomDir = appState.useCustomDir;
       _customDirController.text = appState.customDirPath;
+
+      // Load text size preference
+      _textSizePreference = appState.textSizePreference;
     });
   }
 
@@ -75,6 +81,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('use_custom_dir', _useCustomDir);
     await prefs.setString('custom_dir_path', _customDirController.text);
 
+    // Save text size preference
+    await prefs.setString('text_size_preference', _textSizePreference);
+
     appState.preferredFansubber = _selectedFansubber;
     appState.isDarkMode = _isDarkMode;
     appState.showAdult = _showAdult;
@@ -82,6 +91,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Update AppState with custom directory settings
     appState.useCustomDir = _useCustomDir;
     appState.customDirPath = _customDirController.text;
+
+    // Update AppState with text size preference
+    appState.textSizePreference = _textSizePreference;
 
     setState(() {
       _isSettingsChanged = false;
@@ -99,6 +111,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appState = Provider.of<AppState>(context);
+    final textSizeAdjustment = context.getFontSizeAdjustment(
+      appState.textSizePreference,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -129,6 +146,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _isSettingsChanged = true;
               });
             },
+          ),
+
+          // Text Size Setting
+          ListTile(
+            title: const Text('Text Size'),
+            subtitle: const Text('Change the size of text throughout the app'),
+            trailing: DropdownButton<String>(
+              value: _textSizePreference,
+              underline: const SizedBox(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _textSizePreference = newValue;
+                    _isSettingsChanged = true;
+                  });
+                }
+              },
+              items: const [
+                DropdownMenuItem(value: 'small', child: Text('Small')),
+                DropdownMenuItem(value: 'medium', child: Text('Medium')),
+                DropdownMenuItem(value: 'large', child: Text('Large')),
+              ],
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -275,6 +315,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
+
+          // Preview of text sizes
+          if (_isSettingsChanged &&
+              _textSizePreference != appState.textSizePreference) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primaryContainer.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Text Size Preview',
+                    style: TextStyle(
+                      fontSize: 16 + textSizeAdjustment,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This is how text will appear throughout the app.',
+                    style: TextStyle(fontSize: 14 + textSizeAdjustment),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Small details and UI elements',
+                    style: TextStyle(
+                      fontSize: 12 + textSizeAdjustment,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

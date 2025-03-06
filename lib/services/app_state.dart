@@ -22,6 +22,9 @@ class AppState extends ChangeNotifier {
   // Search text
   String _searchText = '';
 
+  // Text size preference (small, medium, large)
+  String _textSizePreference = 'small'; // Default is small
+
   // Edited values
   final Map<String, String> _editedValues = {};
   final Map<String, String> _fansubberValues = {};
@@ -58,6 +61,7 @@ class AppState extends ChangeNotifier {
   bool get showAdult => _showAdult;
   bool get useCustomDir => _useCustomDir;
   String get customDirPath => _customDirPath;
+  String get textSizePreference => _textSizePreference;
 
   AppState() {
     // Initialize with current season
@@ -236,16 +240,26 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  set textSizePreference(String value) {
+    if (value != _textSizePreference &&
+        ['small', 'medium', 'large'].contains(value)) {
+      _textSizePreference = value;
+      _saveSettings();
+      notifyListeners();
+    }
+  }
+
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool('dark_mode') ?? false;
     _preferredFansubber =
         prefs.getString('preferred_fansubber') ?? kDefaultFansubber;
     _showAdult = prefs.getBool('show_adult') ?? false;
-
-    // Add these lines to load qBittorrent download settings
     _useCustomDir = prefs.getBool('use_custom_dir') ?? false;
     _customDirPath = prefs.getString('custom_dir_path') ?? '/dl';
+
+    // Add text size preference loading
+    _textSizePreference = prefs.getString('text_size_preference') ?? 'small';
 
     notifyListeners();
   }
@@ -256,9 +270,9 @@ class AppState extends ChangeNotifier {
     await prefs.setString('preferred_fansubber', _preferredFansubber);
     await prefs.setBool('show_adult', _showAdult);
 
-    // Add these lines to save qBittorrent download settings
     await prefs.setBool('use_custom_dir', _useCustomDir);
     await prefs.setString('custom_dir_path', _customDirPath);
+    await prefs.setString('text_size_preference', _textSizePreference);
   }
 
   // Load anime list from storage
