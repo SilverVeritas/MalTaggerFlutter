@@ -19,7 +19,6 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
   final _hostController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _customDirController = TextEditingController();
 
   bool _isConnecting = false;
   bool _isProcessing = false;
@@ -32,10 +31,6 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
   // Season and year
   String _selectedSeason = '';
   int _selectedYear = DateTime.now().year;
-  bool _useCustomDir = false;
-
-  String get _helperText =>
-      'Anime will be saved to "${_customDirController.text}/{animeName}"';
 
   @override
   void initState() {
@@ -52,37 +47,10 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
     // Get current season information
     final seasonData = SeasonUtils.getCurrentSeason();
 
-    // Get the AppState for custom directory settings
-    final appState = Provider.of<AppState>(context, listen: false);
-
     setState(() {
       _selectedSeason = seasonData.season;
       _selectedYear = seasonData.year;
-
-      // Get custom directory settings from AppState
-      _useCustomDir = appState.useCustomDir;
-      _customDirController.text = appState.customDirPath;
     });
-  }
-
-  Future<void> _loadCustomDirSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _useCustomDir = prefs.getBool('use_custom_dir') ?? false;
-      _customDirController.text = prefs.getString('custom_dir_path') ?? '/dl';
-    });
-  }
-
-  Future<void> _saveCustomDirSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final appState = Provider.of<AppState>(context, listen: false);
-
-    await prefs.setBool('use_custom_dir', _useCustomDir);
-    await prefs.setString('custom_dir_path', _customDirController.text);
-
-    // Update AppState as well
-    appState.useCustomDir = _useCustomDir;
-    appState.customDirPath = _customDirController.text;
   }
 
   @override
@@ -90,7 +58,6 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
     _hostController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
-    _customDirController.dispose();
     super.dispose();
   }
 
@@ -218,20 +185,28 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
 
   // Sanitizes a directory name for safe use across operating systems
   String sanitizeDirectoryName(String name) {
-    // Replace characters that are problematic in file paths
-    return name
-        .replaceAll(':', '_')
-        .replaceAll('/', '_')
-        .replaceAll('\\', '_')
-        .replaceAll('<', '_')
-        .replaceAll('>', '_')
-        .replaceAll('"', '_')
-        .replaceAll('\'', '_')
-        .replaceAll('|', '_')
-        .replaceAll('?', '_')
-        .replaceAll('*', '_')
-        .replaceAll('&', 'and')
-        .trim();
+    // First, replace problematic characters
+    String sanitized =
+        name
+            .replaceAll(':', '_')
+            .replaceAll('/', '_')
+            .replaceAll('\\', '_')
+            .replaceAll('<', '_')
+            .replaceAll('>', '_')
+            .replaceAll('"', '_')
+            .replaceAll('\'', '_')
+            .replaceAll('|', '_')
+            .replaceAll('?', '_')
+            .replaceAll('*', '_')
+            .replaceAll('&', 'and')
+            .trim();
+
+    // If the name ends with a period, remove it or replace it
+    if (sanitized.endsWith('.')) {
+      sanitized = '${sanitized.substring(0, sanitized.length - 1)}_';
+    }
+
+    return sanitized;
   }
 
   Future<void> _processAnimeList() async {
@@ -256,9 +231,6 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       );
       return;
     }
-
-    // Save custom directory settings
-    await _saveCustomDirSettings();
 
     setState(() {
       _isProcessing = true;
@@ -303,6 +275,11 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
         return;
       }
 
+      // Get app state for custom directory settings
+      final appState = Provider.of<AppState>(context, listen: false);
+      final useCustomDir = appState.useCustomDir;
+      final customDirPath = appState.customDirPath;
+
       // Create season prefix for feed/rule names
       final seasonPrefix = '${_selectedSeason.toUpperCase()}_${_selectedYear}_';
 
@@ -331,19 +308,25 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
           continue;
         }
 
+        // Wait a moment to ensure the feed is registered
+        await Future.delayed(const Duration(milliseconds: 1000));
+
         // Determine save path
         String? savePath;
-        if (_useCustomDir) {
-          final basePath = _customDirController.text.trim();
+        if (useCustomDir) {
+          final basePath = customDirPath.trim();
           savePath = '$basePath/$sanitizedTitle';
         } else {
           savePath = sanitizedTitle;
         }
 
-        // Add RSS rule without must contain filter
+        // Create the rule name
+        final ruleName = '$seasonPrefix${anime.title}';
+
+        // Add RSS rule
         final ruleAdded = await qbClient.addRuleWithSavePath(
-          '$seasonPrefix${anime.title}', // Rule name
-          feedName, // Feed title
+          ruleName, // Rule name
+          feedName, // Feed title - our modified function will find the URL
           savePath, // Save path
         );
 
@@ -376,8 +359,6 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(title: const Text('qBittorrent Integration')),
       body: SingleChildScrollView(
@@ -505,37 +486,83 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
 
               const SizedBox(height: 16),
 
-              // Custom directory settings
-              SwitchListTile(
-                title: const Text('Use Custom Save Directory'),
-                subtitle: const Text('Save to a specific base directory'),
-                value: _useCustomDir,
-                onChanged: (value) {
-                  setState(() {
-                    _useCustomDir = value;
-                  });
-                  // Save settings when toggled
-                  _saveCustomDirSettings();
-                },
-              ),
-
-              if (_useCustomDir) ...[
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _customDirController,
-                  decoration: InputDecoration(
-                    labelText: 'Base Directory Path',
-                    hintText: '/dl',
-                    helperText: _helperText, // Use the computed getter
-                  ),
-                  onChanged: (value) {
-                    // Trigger a rebuild to update the helper text
-                    setState(() {});
-                    // Save settings when text changes
-                    _saveCustomDirSettings();
+              // Information about custom directory settings
+              Padding(
+                padding: const EdgeInsets.only(top: 16.0),
+                child: Consumer<AppState>(
+                  builder: (context, appState, _) {
+                    if (appState.useCustomDir) {
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.blue.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.info_outline,
+                                  color: Colors.blue,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Custom Save Directory Enabled',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[700],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'All anime will be saved to: ${appState.customDirPath}/{animeName}',
+                              style: TextStyle(color: Colors.grey[800]),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'This setting can be changed in the App Settings page.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.folder_outlined,
+                              color: Colors.grey,
+                              size: 18,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              'Using default save location (no custom directory)',
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                   },
                 ),
-              ],
+              ),
 
               const Divider(height: 32),
 

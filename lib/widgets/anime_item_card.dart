@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/scraped_anime.dart';
+import '../services/rss_utils.dart';
 import '../services/app_state.dart';
 import '../services/anime_scraper_service.dart';
 import '../constants.dart';
@@ -688,6 +689,19 @@ class _AnimeItemCardState extends State<AnimeItemCard> {
                               final url = _rssController.text;
                               if (url.isNotEmpty) {
                                 _launchUrl(url);
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.search),
+                            color: theme.colorScheme.tertiary,
+                            tooltip: 'Open search page',
+                            onPressed: () {
+                              final rssUrl = _rssController.text;
+                              if (rssUrl.isNotEmpty) {
+                                final searchUrl =
+                                    RssUtils.convertRssToSearchUrl(rssUrl);
+                                _launchUrl(searchUrl);
                               }
                             },
                           ),

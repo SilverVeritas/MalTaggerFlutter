@@ -30,6 +30,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final appState = Provider.of<AppState>(context, listen: false);
 
     // Get the preferred fansubber from SharedPreferences
     final preferredFansubber =
@@ -48,6 +49,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       _isDarkMode = prefs.getBool('dark_mode') ?? false;
       _showAdult = prefs.getBool('show_adult') ?? false;
+
+      // Load custom directory settings
+      _useCustomDir = prefs.getBool('use_custom_dir') ?? false;
+      _customDirController.text = prefs.getString('custom_dir_path') ?? '/dl';
+
+      // Also ensure these match what's in AppState
+      _useCustomDir = appState.useCustomDir;
+      _customDirController.text = appState.customDirPath;
     });
   }
 
@@ -62,9 +71,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await prefs.setBool('dark_mode', _isDarkMode);
     await prefs.setBool('show_adult', _showAdult);
 
+    // Save custom directory settings
+    await prefs.setBool('use_custom_dir', _useCustomDir);
+    await prefs.setString('custom_dir_path', _customDirController.text);
+
     appState.preferredFansubber = _selectedFansubber;
     appState.isDarkMode = _isDarkMode;
     appState.showAdult = _showAdult;
+
+    // Update AppState with custom directory settings
+    appState.useCustomDir = _useCustomDir;
+    appState.customDirPath = _customDirController.text;
 
     setState(() {
       _isSettingsChanged = false;
@@ -115,8 +132,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           const SizedBox(height: 24),
-
-          // QB Settings
 
           // Anime Settings
           const Text(
@@ -228,10 +243,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
 
           // Save Button
+          const SizedBox(height: 24),
           ElevatedButton(
             onPressed: _isSettingsChanged ? _saveSettings : null,
             child: const Text('Save All Settings'),
           ),
+
+          // Information about how settings are applied
+          if (_isSettingsChanged)
+            Container(
+              margin: const EdgeInsets.only(top: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.amber.withOpacity(0.5)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.amber[800], size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'Remember to save your changes for them to take effect.',
+                      style: TextStyle(
+                        fontStyle: FontStyle.italic,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -278,6 +321,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _qbHostController.dispose();
     _qbUsernameController.dispose();
     _qbPasswordController.dispose();
+    _customDirController.dispose();
     super.dispose();
   }
 }
