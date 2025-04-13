@@ -17,6 +17,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _qbHostController = TextEditingController();
   final _qbUsernameController = TextEditingController();
   final _qbPasswordController = TextEditingController();
+  final _textSizeController = TextEditingController();
+  final _fansubberController = TextEditingController();
   String _selectedFansubber = '';
   bool _isDarkMode = false;
   bool _showAdult = false;
@@ -152,22 +154,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(
             title: const Text('Text Size'),
             subtitle: const Text('Change the size of text throughout the app'),
-            trailing: DropdownButton<String>(
-              value: _textSizePreference,
-              underline: const SizedBox(),
-              onChanged: (String? newValue) {
-                if (newValue != null) {
-                  setState(() {
-                    _textSizePreference = newValue;
-                    _isSettingsChanged = true;
-                  });
-                }
-              },
-              items: const [
-                DropdownMenuItem(value: 'small', child: Text('Small')),
-                DropdownMenuItem(value: 'medium', child: Text('Medium')),
-                DropdownMenuItem(value: 'large', child: Text('Large')),
-              ],
+            trailing: SizedBox(
+              width: 120,
+              child: DropdownMenu<String>(
+                controller: _textSizeController,
+                enableFilter: false,
+                initialSelection: _textSizePreference,
+                onSelected: (String? newValue) {
+                  if (newValue != null) {
+                    setState(() {
+                      _textSizePreference = newValue;
+                      _isSettingsChanged = true;
+                    });
+                  }
+                },
+                dropdownMenuEntries: const [
+                  DropdownMenuEntry(value: 'small', label: 'Small'),
+                  DropdownMenuEntry(value: 'medium', label: 'Medium'),
+                  DropdownMenuEntry(value: 'large', label: 'Large'),
+                ],
+                inputDecorationTheme: const InputDecorationTheme(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
             ),
           ),
 
@@ -179,27 +189,49 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const Divider(),
-          DropdownButtonFormField<String>(
-            decoration: const InputDecoration(labelText: 'Preferred Fansubber'),
-            value:
-                kFansubberOptions.contains(_selectedFansubber)
-                    ? _selectedFansubber
-                    : kDefaultFansubber, // Ensure the value exists in items
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _selectedFansubber = newValue;
-                  _isSettingsChanged = true;
-                });
-              }
-            },
-            items:
-                kFansubberOptions.map<DropdownMenuItem<String>>((String value) {
-                  return DropdownMenuItem<String>(
-                    value: value,
-                    child: Text(value),
-                  );
-                }).toList(),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: DropdownMenu<String>(
+              controller: _fansubberController,
+              label: const Text('Preferred Fansubber'),
+              initialSelection: _selectedFansubber,
+              width:
+                  MediaQuery.of(context).size.width - 32, // Account for padding
+              textStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize:
+                    14 + context.getFontSizeAdjustment(_textSizePreference),
+              ),
+              menuHeight: 300, // Increased height to accommodate larger text
+              inputDecorationTheme: InputDecorationTheme(
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical:
+                      16 +
+                      context.getFontSizeAdjustment(_textSizePreference) / 2,
+                ),
+                isDense: false,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onSelected: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedFansubber = newValue;
+                    _isSettingsChanged = true;
+                  });
+                }
+              },
+              dropdownMenuEntries:
+                  kFansubberOptions.map<DropdownMenuEntry<String>>((
+                    String value,
+                  ) {
+                    return DropdownMenuEntry<String>(
+                      value: value,
+                      label: value,
+                    );
+                  }).toList(),
+            ),
           ),
 
           SwitchListTile(
@@ -295,9 +327,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               margin: const EdgeInsets.only(top: 16),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
+                color: Colors.amber.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
               ),
               child: Row(
                 children: [
@@ -325,10 +357,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
               decoration: BoxDecoration(
                 color: Theme.of(
                   context,
-                ).colorScheme.primaryContainer.withOpacity(0.3),
+                ).colorScheme.primaryContainer.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.3),
                 ),
               ),
               child: Column(
@@ -406,6 +440,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _qbUsernameController.dispose();
     _qbPasswordController.dispose();
     _customDirController.dispose();
+    _textSizeController.dispose(); // Add this
+    _fansubberController.dispose(); // Add this
     super.dispose();
   }
 }

@@ -46,7 +46,7 @@ class MyApp extends StatelessWidget {
               seedColor: primaryColor,
               brightness: Brightness.light,
               primary: primaryColor,
-              primaryContainer: primaryColor.withOpacity(0.2),
+              primaryContainer: primaryColor.withValues(alpha: 0.2),
               secondary: const Color(0xFF2e6ea2),
               background: lightBgColor,
               surface: Colors.white,
@@ -71,17 +71,17 @@ class MyApp extends StatelessWidget {
               seedColor: primaryColor,
               brightness: Brightness.dark,
               primary: primaryColor,
-              primaryContainer: primaryColor.withOpacity(0.2),
+              primaryContainer: primaryColor.withValues(alpha: 0.2),
               secondary: const Color(0xFF2e6ea2),
               background: darkBgColor,
               surface: const Color(0xFF252b3d),
-              onBackground: Colors.white.withOpacity(0.9),
-              onSurface: Colors.white.withOpacity(0.9),
+              onBackground: Colors.white.withValues(alpha: 0.9),
+              onSurface: Colors.white.withValues(alpha: 0.9),
             ),
             scaffoldBackgroundColor: darkBgColor,
             cardColor: const Color(0xFF252b3d),
             appBarTheme: AppBarTheme(
-              backgroundColor: primaryColor.withOpacity(0.8),
+              backgroundColor: primaryColor.withValues(alpha: 0.8),
               foregroundColor: Colors.white,
               elevation: 4,
             ),
@@ -144,7 +144,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xFF252b3d)
                 : Colors.white,
-        indicatorColor: primaryColor.withOpacity(0.2),
+        indicatorColor: primaryColor.withValues(alpha: 0.2),
         destinations: [
           NavigationDestination(
             icon: Icon(

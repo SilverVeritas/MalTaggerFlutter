@@ -427,7 +427,7 @@ class _QBittorrentDashboardScreenState
           Container(
             color: Theme.of(
               context,
-            ).colorScheme.primaryContainer.withOpacity(0.2),
+            ).colorScheme.primaryContainer.withValues(alpha: 0.2),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               children: [
@@ -471,7 +471,7 @@ class _QBittorrentDashboardScreenState
           Container(
             color: Theme.of(
               context,
-            ).colorScheme.primaryContainer.withOpacity(0.2),
+            ).colorScheme.primaryContainer.withValues(alpha: 0.2),
             child: TabBar(
               isScrollable: true,
               tabs: const [
@@ -553,7 +553,10 @@ class _QBittorrentDashboardScreenState
           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: seasonColor.withOpacity(0.5), width: 1),
+            side: BorderSide(
+              color: seasonColor.withValues(alpha: 0.5),
+              width: 1,
+            ),
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(
@@ -575,9 +578,11 @@ class _QBittorrentDashboardScreenState
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: seasonColor.withOpacity(0.1),
+                      color: seasonColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: seasonColor.withOpacity(0.3)),
+                      border: Border.all(
+                        color: seasonColor.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Text(
                       '${season.toUpperCase()} $year',
@@ -595,7 +600,7 @@ class _QBittorrentDashboardScreenState
                     fontSize: 13,
                     color: Theme.of(
                       context,
-                    ).colorScheme.onSurface.withOpacity(0.7),
+                    ).colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -639,7 +644,7 @@ class _QBittorrentDashboardScreenState
           Container(
             color: Theme.of(
               context,
-            ).colorScheme.primaryContainer.withOpacity(0.2),
+            ).colorScheme.primaryContainer.withValues(alpha: 0.2),
             child: TabBar(
               isScrollable: true,
               tabs: const [
@@ -721,7 +726,10 @@ class _QBittorrentDashboardScreenState
           margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: seasonColor.withOpacity(0.5), width: 1),
+            side: BorderSide(
+              color: seasonColor.withValues(alpha: 0.5),
+              width: 1,
+            ),
           ),
           child: ExpansionTile(
             title: Row(
@@ -740,9 +748,11 @@ class _QBittorrentDashboardScreenState
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: seasonColor.withOpacity(0.1),
+                      color: seasonColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: seasonColor.withOpacity(0.3)),
+                      border: Border.all(
+                        color: seasonColor.withValues(alpha: 0.3),
+                      ),
                     ),
                     child: Text(
                       '${season.toUpperCase()} $year',
@@ -818,7 +828,9 @@ class _QBittorrentDashboardScreenState
               label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
-                color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.8),
               ),
             ),
           ),

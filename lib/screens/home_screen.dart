@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: primaryColor.withOpacity(0.3),
+                            color: primaryColor.withValues(alpha: 0.3),
                             spreadRadius: 2,
                             blurRadius: 8,
                             offset: const Offset(0, 3),
@@ -121,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       duration: const Duration(milliseconds: 500),
                       child: Container(
                         key: ValueKey<int>(_currentMessageIndex),
-                        constraints: BoxConstraints(maxWidth: 600),
+                        constraints: const BoxConstraints(maxWidth: 600),
                         padding: EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: isVerticallyConstrained ? 8 : 12,
@@ -129,11 +129,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         decoration: BoxDecoration(
                           color:
                               isLightMode
-                                  ? primaryColor.withOpacity(0.08)
-                                  : primaryColor.withOpacity(0.15),
+                                  ? primaryColor.withValues(alpha: 0.08)
+                                  : primaryColor.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: primaryColor.withOpacity(0.3),
+                            color: primaryColor.withValues(alpha: 0.3),
                             width: 1.5,
                           ),
                         ),
@@ -157,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     // Navigation buttons in a constrained container
                     Container(
-                      constraints: BoxConstraints(maxWidth: 600),
+                      constraints: const BoxConstraints(maxWidth: 600),
                       child: Column(
                         children: [
                           _buildNavigationButton(

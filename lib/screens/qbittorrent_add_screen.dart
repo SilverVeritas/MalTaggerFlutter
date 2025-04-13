@@ -19,6 +19,9 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
   final _hostController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _seasonController = TextEditingController();
+  final _yearController = TextEditingController();
+  final _animeListController = TextEditingController();
 
   bool _isConnecting = false;
   bool _isProcessing = false;
@@ -50,6 +53,8 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
     setState(() {
       _selectedSeason = seasonData.season;
       _selectedYear = seasonData.year;
+      _seasonController.text = seasonData.season;
+      _yearController.text = seasonData.year.toString();
     });
   }
 
@@ -58,6 +63,9 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
     _hostController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _seasonController.dispose();
+    _yearController.dispose();
+    _animeListController.dispose();
     super.dispose();
   }
 
@@ -431,54 +439,49 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
               Row(
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String>(
-                      decoration: const InputDecoration(
-                        labelText: 'Anime Season',
-                      ),
-                      value: _selectedSeason,
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'winter',
-                          child: Text('Winter'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'spring',
-                          child: Text('Spring'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'summer',
-                          child: Text('Summer'),
-                        ),
-                        DropdownMenuItem(value: 'fall', child: Text('Fall')),
-                      ],
-                      onChanged: (value) {
+                    child: DropdownMenu<String>(
+                      controller: _seasonController,
+                      label: const Text('Anime Season'),
+                      initialSelection: _selectedSeason,
+                      onSelected: (value) {
                         if (value != null) {
                           setState(() {
                             _selectedSeason = value;
                           });
                         }
                       },
+                      dropdownMenuEntries: const [
+                        DropdownMenuEntry(value: 'winter', label: 'Winter'),
+                        DropdownMenuEntry(value: 'spring', label: 'Spring'),
+                        DropdownMenuEntry(value: 'summer', label: 'Summer'),
+                        DropdownMenuEntry(value: 'fall', label: 'Fall'),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                    child: DropdownButtonFormField<int>(
-                      decoration: const InputDecoration(labelText: 'Year'),
-                      value: _selectedYear,
-                      items: List.generate(
-                        5,
-                        (index) => DropdownMenuItem(
-                          value: DateTime.now().year - index,
-                          child: Text('${DateTime.now().year - index}'),
-                        ),
-                      ),
-                      onChanged: (value) {
+                    child: DropdownMenu<int>(
+                      controller: _yearController,
+                      label: const Text('Year'),
+                      initialSelection: _selectedYear,
+                      menuHeight: 250,
+                      onSelected: (value) {
                         if (value != null) {
                           setState(() {
                             _selectedYear = value;
                           });
                         }
                       },
+                      dropdownMenuEntries: List.generate(
+                        DateTime.now().year - 1959, // From current year to 1960
+                        (index) {
+                          final year = DateTime.now().year - index;
+                          return DropdownMenuEntry(
+                            value: year,
+                            label: year.toString(),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ],
@@ -566,34 +569,35 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
 
               const Divider(height: 32),
 
-              const Text(
+              Text(
                 'Process Anime List',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
 
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(
-                  labelText: 'Select Scraped Anime List',
-                  hintText: 'Choose a list',
-                ),
-                value: _selectedListName,
-                items:
-                    _availableLists.map((listName) {
-                      return DropdownMenuItem(
-                        value: listName,
-                        child: Text(
-                          listName.length > 40
-                              ? '...${listName.substring(listName.length - 40)}'
-                              : listName,
-                        ),
-                      );
-                    }).toList(),
-                onChanged: (value) {
+              DropdownMenu<String>(
+                controller: _animeListController,
+                label: const Text('Select Scraped Anime List'),
+                hintText: 'Choose a list',
+                width:
+                    MediaQuery.of(context).size.width -
+                    32, // Account for padding
+                initialSelection: _selectedListName,
+                onSelected: (value) {
                   setState(() {
                     _selectedListName = value;
                   });
                 },
+                dropdownMenuEntries:
+                    _availableLists.map((listName) {
+                      return DropdownMenuEntry(
+                        value: listName,
+                        label:
+                            listName.length > 40
+                                ? '...${listName.substring(listName.length - 40)}'
+                                : listName,
+                      );
+                    }).toList(),
               ),
               const SizedBox(height: 16),
 
