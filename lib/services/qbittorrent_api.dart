@@ -63,7 +63,6 @@ class QBittorrentAPI {
     }
   }
 
-  // Add this method inside the QBittorrentAPI class
   Future<bool> addRuleWithSavePath(
     String name,
     String feedTitle,
@@ -75,34 +74,59 @@ class QBittorrentAPI {
         if (!await login()) return false;
       }
 
-      // Get the actual RSS feeds to find the URL
-      final feeds = await getRssFeeds();
+      // Get all RSS feeds
+      final feedsResponse = await _client.get(
+        Uri.parse('$_baseUrl/api/v2/rss/items'),
+        headers: _headers,
+      );
 
-      // Find the feed URL based on the feed title
-      String? feedUrl;
-      for (var key in feeds.keys) {
-        if (key == feedTitle || key.contains(feedTitle)) {
-          feedUrl = feeds[key]['url'];
-          break;
-        }
-      }
-
-      // If we can't find the feed URL, we can't create the rule
-      if (feedUrl == null) {
-        print('Could not find URL for feed: $feedTitle');
+      if (feedsResponse.statusCode != 200) {
+        print('Failed to get RSS feeds: ${feedsResponse.statusCode}');
         return false;
       }
 
-      // Create rule definition with the actual feed URL
+      final feedsData = json.decode(feedsResponse.body);
+
+      // Extract the feed URL from the feedsData
+      String? feedUrl;
+
+      // The feed info is structured as {feedTitle: {uid: {...}, url: "..."}}
+      if (feedsData is Map && feedsData.containsKey(feedTitle)) {
+        final feedInfo = feedsData[feedTitle];
+        if (feedInfo is Map && feedInfo.containsKey('url')) {
+          feedUrl = feedInfo['url'];
+          print('Found URL for feed: $feedTitle, URL: $feedUrl');
+        }
+      }
+
+      if (feedUrl == null) {
+        print(
+          'Could not find URL for feed: $feedTitle, using feed title directly',
+        );
+        return false;
+      }
+
+      // First, check if any rules already exist for this feed
+      final rulesResponse = await _client.get(
+        Uri.parse('$_baseUrl/api/v2/rss/rules'),
+        headers: _headers,
+      );
+
+      Map<String, dynamic> existingRules = {};
+      if (rulesResponse.statusCode == 200) {
+        existingRules = json.decode(rulesResponse.body);
+      }
+
+      // Create a rule with explicit matching for this feed
       final ruleDefinition = jsonEncode({
         'enabled': true,
-        'mustContain': '',
+        'mustContain': '', // Empty means match everything
         'mustNotContain': '',
         'useRegex': false,
         'episodeFilter': '',
         'smartFilter': false,
         'previouslyMatchedEpisodes': [],
-        'affectedFeeds': [feedUrl], // Use the actual feed URL
+        'affectedFeeds': [feedUrl], // Use the actual feed URL here
         'ignoreDays': 0,
         'lastMatch': '',
         'addPaused': false,
@@ -110,9 +134,10 @@ class QBittorrentAPI {
         'savePath': savePath ?? '',
       });
 
-      print('Adding rule: $name for feed URL: $feedUrl');
+      print('Adding rule: $name with URL: $feedUrl and savePath: $savePath');
 
-      final response = await _client.post(
+      // Set the rule
+      final ruleResponse = await _client.post(
         Uri.parse('$_baseUrl/api/v2/rss/setRule'),
         headers: {
           ..._headers,
@@ -121,46 +146,41 @@ class QBittorrentAPI {
         body: {'ruleName': name, 'ruleDef': ruleDefinition},
       );
 
-      // If unauthorized, try to login again
-      if (response.statusCode == 401 || response.statusCode == 403) {
-        if (await login()) {
-          return addRuleWithSavePath(name, feedTitle, savePath);
+      if (ruleResponse.statusCode != 200) {
+        print(
+          'Failed to set rule: ${ruleResponse.statusCode} - ${ruleResponse.body}',
+        );
+
+        if (ruleResponse.statusCode == 401 || ruleResponse.statusCode == 403) {
+          if (await login()) {
+            return addRuleWithSavePath(name, feedTitle, savePath);
+          }
         }
         return false;
       }
 
-      print('Add rule response: ${response.statusCode} - ${response.body}');
-      return response.statusCode == 200;
+      print(
+        'Add rule response: ${ruleResponse.statusCode} - ${ruleResponse.body}',
+      );
+
+      // Force refresh ALL feeds to ensure rules are applied
+      final refreshResponse = await _client.post(
+        Uri.parse('$_baseUrl/api/v2/rss/refreshItem'),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'itemPath': ''}, // Empty path refreshes all feeds
+      );
+
+      print(
+        'Refresh response: ${refreshResponse.statusCode} - ${refreshResponse.body}',
+      );
+
+      return true;
     } catch (e) {
       print('Failed to add rule: $e');
       return false;
-    }
-  }
-
-  Future<String?> getExactFeedPath(String feedName) async {
-    try {
-      // Ensure we have a valid session
-      if (_sessionCookie == null) {
-        if (!await login()) return null;
-      }
-
-      // Get all RSS feeds
-      final feeds = await getRssFeeds();
-
-      // Look for our feed by name
-      for (var key in feeds.keys) {
-        // Check if this key is our feed or contains our feed name
-        if (key == feedName || key.endsWith('/$feedName')) {
-          return key; // Return the exact feed path as used by qBittorrent
-        }
-      }
-
-      // If we couldn't find an exact match, return the original name
-      // (it might be hierarchical in qBittorrent's structure)
-      return feedName;
-    } catch (e) {
-      print('Error finding feed path: $e');
-      return feedName; // Return original as fallback
     }
   }
 
@@ -284,6 +304,32 @@ class QBittorrentAPI {
     }
   }
 
+  Future<bool> refreshAllFeeds() async {
+    try {
+      if (_sessionCookie == null) {
+        if (!await login()) return false;
+      }
+
+      // Refresh all feeds
+      final response = await _client.post(
+        Uri.parse('$_baseUrl/api/v2/rss/refreshItem'),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'itemPath': ''}, // Empty path refreshes all feeds
+      );
+
+      print(
+        'Refresh all feeds response: ${response.statusCode} - ${response.body}',
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error refreshing feeds: $e');
+      return false;
+    }
+  }
+
   Future<bool> deleteFeed(String feedPath) async {
     try {
       // Ensure we have a valid session
@@ -385,8 +431,21 @@ class QBittorrentAPI {
 
   Future<Map<String, dynamic>> getRssFeeds() async {
     try {
+      // Ensure we have a valid session
+      if (_sessionCookie == null) {
+        if (!await login()) return {};
+      }
+
       final url = '$_baseUrl/api/v2/rss/items';
-      final response = await _client.get(Uri.parse(url));
+      final response = await _client.get(Uri.parse(url), headers: _headers);
+
+      // If unauthorized, try to login again
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (await login()) {
+          return getRssFeeds(); // Retry after login
+        }
+        return {};
+      }
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
