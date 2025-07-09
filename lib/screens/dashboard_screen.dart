@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/qbittorrent_api.dart';
+import '../widgets/dashboard/rss_feeds_tab.dart';
+import '../widgets/dashboard/rss_rules_tab.dart';
 
 class QBittorrentDashboardScreen extends StatefulWidget {
   const QBittorrentDashboardScreen({super.key});
@@ -103,37 +105,6 @@ class _QBittorrentDashboardScreenState
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('qBittorrent Dashboard'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _refreshData,
-            tooltip: 'Refresh Data',
-          ),
-        ],
-      ),
-      body:
-          _isLoading
-              ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 16),
-                    Text(_statusMessage),
-                  ],
-                ),
-              )
-              : _isConnected
-              ? _buildDashboardContent()
-              : _buildConnectionError(),
-    );
-  }
-
   Widget _buildConnectionError() {
     return Center(
       child: Column(
@@ -165,10 +136,68 @@ class _QBittorrentDashboardScreenState
       length: 2,
       child: Column(
         children: [
-          const TabBar(tabs: [Tab(text: 'RSS Feeds'), Tab(text: 'RSS Rules')]),
+          TabBar(
+            tabs: const [Tab(text: 'RSS Feeds'), Tab(text: 'RSS Rules')],
+            indicatorColor: Theme.of(context).colorScheme.primary,
+            labelColor: Theme.of(context).colorScheme.primary,
+          ),
           Expanded(
             child: TabBarView(
-              children: [_buildRssFeedsTab(), _buildRssRulesTab()],
+              children: [
+                RssFeedsTab(
+                  feeds: _rssFeeds,
+                  client: _qbClient,
+                  onStatusUpdate: (message) {
+                    setState(() {
+                      _statusMessage = message;
+                    });
+                  },
+                  onFeedsUpdated: (feeds) {
+                    setState(() {
+                      _rssFeeds = feeds;
+                    });
+                  },
+                ),
+                RssRulesTab(
+                  rules: _rssRules,
+                  client: _qbClient,
+                  onStatusUpdate: (message) {
+                    setState(() {
+                      _statusMessage = message;
+                    });
+                  },
+                  onRulesUpdated: (rules) {
+                    setState(() {
+                      _rssRules = rules;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          // Status bar at the bottom
+          Container(
+            color: Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withValues(alpha: 0.2),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _statusMessage,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -176,92 +205,34 @@ class _QBittorrentDashboardScreenState
     );
   }
 
-  Widget _buildRssFeedsTab() {
-    if (_rssFeeds.isEmpty) {
-      return const Center(child: Text('No RSS feeds found'));
-    }
-
-    return ListView.builder(
-      itemCount: _rssFeeds.length,
-      itemBuilder: (context, index) {
-        final feedName = _rssFeeds.keys.elementAt(index);
-        final feedData = _rssFeeds[feedName];
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ListTile(
-            title: Text(feedName),
-            subtitle: Text('URL: ${feedData?['url'] ?? 'No URL'}'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  tooltip: 'Refresh Feed',
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Refreshing feed: $feedName')),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.delete),
-                  tooltip: 'Delete Feed',
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Delete feed: $feedName')),
-                    );
-                  },
-                ),
-              ],
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('qBittorrent Dashboard'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _isLoading ? null : _refreshData,
+            tooltip: 'Refresh Data',
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRssRulesTab() {
-    if (_rssRules.isEmpty) {
-      return const Center(child: Text('No RSS rules found'));
-    }
-
-    return ListView.builder(
-      itemCount: _rssRules.length,
-      itemBuilder: (context, index) {
-        final ruleName = _rssRules.keys.elementAt(index);
-        final ruleData = _rssRules[ruleName];
-
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: ListTile(
-            title: Text(ruleName),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Must Contain: ${ruleData?['mustContain'] ?? 'Not specified'}',
+        ],
+      ),
+      body:
+          _isLoading
+              ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(_statusMessage),
+                  ],
                 ),
-                Text('Episodes: ${ruleData?['episodeFilter'] ?? 'All'}'),
-                if (ruleData?['affectedFeeds'] != null)
-                  Text(
-                    'Feed: ${(ruleData!['affectedFeeds'] as List).join(', ')}',
-                  ),
-              ],
-            ),
-            isThreeLine: true,
-            trailing: IconButton(
-              icon: const Icon(Icons.delete),
-              tooltip: 'Delete Rule',
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Delete rule: $ruleName')),
-                );
-              },
-            ),
-          ),
-        );
-      },
+              )
+              : _isConnected
+              ? _buildDashboardContent()
+              : _buildConnectionError(),
     );
   }
 

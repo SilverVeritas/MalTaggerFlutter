@@ -85,7 +85,8 @@ class RssUtils {
     // Replace quotes first, then encode the whole title
     final safeTitle = Uri.encodeComponent(title.replaceAll('"', "'"));
 
-    return 'https://nyaa.si/?page=rss&q=-batch+$safeFansubber+$safeTitle&c=0_0&f=0';
+    // New URL format for Animetosho
+    return 'https://feed.animetosho.org/rss2?only_tor=1&q=-batch+$safeFansubber+$safeTitle';
   }
 
   static String formatSearchUrl(String title, [String fansubber = 'ember']) {
@@ -94,8 +95,8 @@ class RssUtils {
     // For the title, we want to keep spaces for the search interface
     final safeTitle = title.replaceAll('"', "'");
 
-    // Construct the URL with properly encoded components
-    return 'https://nyaa.si/?f=0&c=0_0&q=-batch+$safeFansubber+$safeTitle';
+    // Construct the search URL for Animetosho web interface
+    return 'https://animetosho.org/search?q=-batch+$safeFansubber+$safeTitle';
   }
 
   static String formatSearchUrlFromTerms(String searchTerms, String fansubber) {
@@ -104,7 +105,7 @@ class RssUtils {
     // For search terms, replace quotes but keep spaces
     final safeTerms = searchTerms.replaceAll('"', "'");
 
-    return 'https://nyaa.si/?f=0&c=0_0&q=-batch+$safeFansubber+$safeTerms';
+    return 'https://animetosho.org/search?q=-batch+$safeFansubber+$safeTerms';
   }
 
   static bool validateRssUrl(String url) {
@@ -114,22 +115,26 @@ class RssUtils {
 
   static String convertRssToSearchUrl(String rssUrl) {
     try {
-      // Parse the RSS URL
-      final uri = Uri.parse(rssUrl);
+      // Check if it's an Animetosho RSS URL
+      if (rssUrl.contains('feed.animetosho.org/rss2')) {
+        // Parse the RSS URL
+        final uri = Uri.parse(rssUrl);
 
-      // Get the query parameters
-      final queryParams = uri.queryParameters;
+        // Get the query parameters
+        final queryParams = uri.queryParameters;
 
-      // We need the search query from the q parameter
-      final searchQuery = queryParams['q'] ?? '';
-      final category = queryParams['c'] ?? '0_0';
-      final filter = queryParams['f'] ?? '0';
+        // We need the search query from the q parameter
+        final searchQuery = queryParams['q'] ?? '';
 
-      // Construct the search URL (remove the page=rss part)
-      return 'https://nyaa.si/?f=$filter&c=$category&q=$searchQuery';
+        // Construct the search URL
+        return 'https://animetosho.org/search?q=$searchQuery';
+      } else {
+        // Fallback for other RSS sources
+        return rssUrl.replaceFirst('rss2', 'search');
+      }
     } catch (e) {
       print('Error converting RSS to search URL: $e');
-      return rssUrl.replaceFirst('page=rss&', ''); // Fallback conversion
+      return rssUrl; // Return original URL on error
     }
   }
 }
