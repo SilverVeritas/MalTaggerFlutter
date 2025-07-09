@@ -18,6 +18,9 @@ class _QBittorrentDashboardScreenState
   String _statusMessage = 'Loading...';
   bool _isConnected = false;
   QBittorrentAPI? _qbClient;
+  int _currentTabIndex = 0;
+  int _feedsTabIndex = 0;
+  int _rulesTabIndex = 0;
 
   @override
   void initState() {
@@ -357,6 +360,12 @@ class _QBittorrentDashboardScreenState
       appBar: AppBar(
         title: const Text('qBittorrent Dashboard'),
         actions: [
+          if (_isConnected && !_isLoading)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep, color: Colors.red),
+              onPressed: _deleteAllInCurrentSeason,
+              tooltip: 'Delete All in Current Season',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading ? null : _refreshData,
@@ -417,6 +426,11 @@ class _QBittorrentDashboardScreenState
             tabs: const [Tab(text: 'RSS Feeds'), Tab(text: 'RSS Rules')],
             indicatorColor: Theme.of(context).colorScheme.primary,
             labelColor: Theme.of(context).colorScheme.primary,
+            onTap: (index) {
+              setState(() {
+                _currentTabIndex = index;
+              });
+            },
           ),
           Expanded(
             child: TabBarView(
@@ -482,6 +496,11 @@ class _QBittorrentDashboardScreenState
                 Tab(text: 'Other'),
               ],
               labelColor: Theme.of(context).colorScheme.primary,
+              onTap: (index) {
+                setState(() {
+                  _feedsTabIndex = index;
+                });
+              },
             ),
           ),
           Expanded(
@@ -655,6 +674,11 @@ class _QBittorrentDashboardScreenState
                 Tab(text: 'Other'),
               ],
               labelColor: Theme.of(context).colorScheme.primary,
+              onTap: (index) {
+                setState(() {
+                  _rulesTabIndex = index;
+                });
+              },
             ),
           ),
           Expanded(
@@ -843,6 +867,145 @@ class _QBittorrentDashboardScreenState
         ],
       ),
     );
+  }
+
+
+  Future<void> _deleteAllInCurrentSeason() async {
+    if (_qbClient == null) return;
+    
+    final seasonNames = ['winter', 'spring', 'summer', 'fall', 'other'];
+    final String currentSeasonName;
+    final Map<String, dynamic> items;
+    final String itemType;
+    
+    if (_currentTabIndex == 0) {
+      // RSS Feeds tab
+      currentSeasonName = seasonNames[_feedsTabIndex];
+      items = _rssFeeds;
+      itemType = 'RSS FEEDS';
+    } else {
+      // RSS Rules tab
+      currentSeasonName = seasonNames[_rulesTabIndex];
+      items = _rssRules;
+      itemType = 'RSS RULES';
+    }
+    
+    final organizedItems = _organizeBySeasonPrefix(items);
+    final itemsInSeason = organizedItems[currentSeasonName]!;
+    
+    if (itemsInSeason.isEmpty) {
+      setState(() {
+        _statusMessage = 'No ${itemType.toLowerCase()} to delete in this season';
+      });
+      return;
+    }
+    
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Delete All'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Are you sure you want to delete all ${itemsInSeason.length} ${itemType.toLowerCase()} in the ${currentSeasonName.toUpperCase()} season?'),
+              const SizedBox(height: 16),
+              Text(
+                'ALL ${currentSeasonName.toUpperCase()} $itemType',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'This action cannot be undone.',
+                style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+              ),
+              const SizedBox(height: 8),
+              Text('${itemType.toLowerCase().substring(0, itemType.length - 1)} to be deleted:'),
+              const SizedBox(height: 8),
+              Container(
+                height: 150,
+                width: double.maxFinite,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: itemsInSeason.isEmpty
+                    ? const Center(child: Text('No items to delete'))
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: itemsInSeason.length,
+                        itemBuilder: (context, index) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 1),
+                          child: Text(
+                            '• ${itemsInSeason[index]}',
+                            style: const TextStyle(fontFamily: 'monospace'),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed) return;
+
+    // Delete all items in the current season
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Deleting ${itemsInSeason.length} ${itemType.toLowerCase()}...';
+    });
+    
+    int deletedCount = 0;
+    int failedCount = 0;
+    
+    for (final itemName in itemsInSeason) {
+      try {
+        bool success;
+        if (_currentTabIndex == 0) {
+          success = await _qbClient!.deleteFeed(itemName);
+        } else {
+          success = await _qbClient!.deleteRule(itemName);
+        }
+        
+        if (success) {
+          deletedCount++;
+        } else {
+          failedCount++;
+        }
+      } catch (e) {
+        failedCount++;
+        print('Error deleting ${itemType.toLowerCase().substring(0, itemType.length - 1)} $itemName: $e');
+      }
+    }
+    
+    // Refresh the data
+    if (_currentTabIndex == 0) {
+      _rssFeeds = await _qbClient!.getRssFeeds();
+    } else {
+      _rssRules = await _qbClient!.getRssRules();
+    }
+    
+    setState(() {
+      _isLoading = false;
+      _statusMessage = 'Deleted $deletedCount ${itemType.toLowerCase()}, failed: $failedCount';
+    });
   }
 
   @override

@@ -7,6 +7,7 @@ class RssFeedsTab extends StatefulWidget {
   final QBittorrentAPI? client;
   final Function(String) onStatusUpdate;
   final Function(Map<String, dynamic>) onFeedsUpdated;
+  final Function(int)? onTabChanged;
 
   const RssFeedsTab({
     super.key,
@@ -14,6 +15,7 @@ class RssFeedsTab extends StatefulWidget {
     required this.client,
     required this.onStatusUpdate,
     required this.onFeedsUpdated,
+    this.onTabChanged,
   });
 
   @override
@@ -37,6 +39,7 @@ class _RssFeedsTabState extends State<RssFeedsTab>
       setState(() {
         _currentTab = _tabController.index;
       });
+      widget.onTabChanged?.call(_tabController.index);
     });
   }
 
@@ -178,4 +181,5 @@ class _RssFeedsTabState extends State<RssFeedsTab>
       ],
     );
   }
+
 }

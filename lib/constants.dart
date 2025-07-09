@@ -1,5 +1,5 @@
 // Default values
-const String kDefaultFansubber = 'ember';
+const String kDefaultFansubber = '';
 
 // Fansubber options
 const List<String> kFansubbers = ['asw', 'ember', 'judas'];

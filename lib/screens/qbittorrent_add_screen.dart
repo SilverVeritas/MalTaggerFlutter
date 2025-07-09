@@ -30,6 +30,11 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
   List<String> _availableLists = [];
   Map<String, List<ScrapedAnime>> _savedLists = {};
   Map<String, dynamic> _processingResults = {};
+  
+  // Progress tracking variables
+  String _currentAnime = '';
+  int _currentIndex = 0;
+  int _totalAnime = 0;
 
   // Season and year
   String _selectedSeason = '';
@@ -243,10 +248,13 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
     setState(() {
       _isProcessing = true;
       _processingResults = {
-        'success': <String>[],
-        'failed': <String>[],
-        'skipped': <String>[],
+        'success': <Map<String, String>>[],
+        'failed': <Map<String, String>>[],
+        'skipped': <Map<String, String>>[],
       };
+      _currentAnime = '';
+      _currentIndex = 0;
+      _totalAnime = 0;
     });
 
     try {
@@ -267,6 +275,12 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
         return;
       }
 
+      // Initialize progress tracking
+      setState(() {
+        _totalAnime = animeList.length;
+        _currentIndex = 0;
+      });
+
       final qbClient = QBittorrentAPI(
         host: _hostController.text,
         username: _usernameController.text,
@@ -278,7 +292,7 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       if (!loggedIn) {
         setState(() {
           _isProcessing = false;
-          _processingResults['failed'] = ['Failed to login to qBittorrent'];
+          _processingResults['failed'] = [{'anime': 'Login', 'reason': 'Failed to login to qBittorrent'}];
         });
         return;
       }
@@ -292,12 +306,22 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
       final seasonPrefix = '${_selectedSeason.toUpperCase()}_${_selectedYear}_';
 
       // Process each anime
-      for (final anime in animeList) {
+      for (int i = 0; i < animeList.length; i++) {
+        final anime = animeList[i];
+        
+        // Update progress
+        setState(() {
+          _currentIndex = i + 1;
+          _currentAnime = anime.title;
+        });
+        
         // Skip entries without valid RSS URL
         if (anime.rssUrl.isEmpty || !anime.rssUrl.startsWith('http')) {
-          _processingResults['skipped'].add(
-            '${anime.title} (No valid RSS URL)',
-          );
+          _processingResults['skipped'].add({
+            'anime': anime.title,
+            'reason': 'No valid RSS URL'
+          });
+          setState(() {});
           continue;
         }
 
@@ -307,13 +331,22 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
         // Create feed name with season prefix
         final feedName = '$seasonPrefix${anime.title}';
 
-        // Add RSS feed
-        final feedAdded = await qbClient.addFeed(anime.rssUrl, feedName);
-        if (!feedAdded) {
-          _processingResults['failed'].add(
-            '${anime.title} (Failed to add RSS feed)',
-          );
-          continue;
+        // Add RSS feed with detailed error handling
+        final feedResult = await qbClient.addFeedWithDetails(anime.rssUrl, feedName);
+        
+        if (!feedResult['success']) {
+          if (feedResult['alreadyExists'] == true) {
+            // Feed already exists, continue to check rule
+            print('Feed already exists for ${anime.title}, checking rule...');
+          } else {
+            // Feed failed to add for another reason
+            _processingResults['failed'].add({
+              'anime': anime.title,
+              'reason': 'Failed to add RSS feed: ${feedResult['error']}'
+            });
+            setState(() {});
+            continue;
+          }
         }
 
         // Wait a moment to ensure the feed is registered
@@ -331,21 +364,39 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
         // Create the rule name
         final ruleName = '$seasonPrefix${anime.title}';
 
-        // Add RSS rule
-        final ruleAdded = await qbClient.addRuleWithSavePath(
+        // Add RSS rule with detailed error handling
+        final ruleResult = await qbClient.addRuleWithSavePathDetails(
           ruleName, // Rule name
           feedName, // Feed title - our modified function will find the URL
           savePath, // Save path
         );
 
-        if (ruleAdded) {
-          _processingResults['success'].add(
-            '${anime.title} (Save path: $savePath)',
-          );
+        if (ruleResult['success']) {
+          _processingResults['success'].add({
+            'anime': anime.title,
+            'reason': 'Successfully added (Save path: $savePath)'
+          });
         } else {
-          _processingResults['failed'].add(
-            '${anime.title} (Failed to add RSS rule)',
-          );
+          if (ruleResult['alreadyExists'] == true) {
+            // Both feed and rule already exist
+            if (feedResult['alreadyExists'] == true) {
+              _processingResults['skipped'].add({
+                'anime': anime.title,
+                'reason': 'Feed and rule already exist (already configured)'
+              });
+            } else {
+              _processingResults['skipped'].add({
+                'anime': anime.title,
+                'reason': 'Rule already exists (already configured)'
+              });
+            }
+          } else {
+            // Rule failed to add for another reason
+            _processingResults['failed'].add({
+              'anime': anime.title,
+              'reason': 'Failed to add RSS rule: ${ruleResult['error']}'
+            });
+          }
         }
 
         // Update UI
@@ -617,15 +668,125 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
               ),
 
               if (_isProcessing)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.0),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
+                _buildProcessingProgress(),
 
               if (_processingResults.isNotEmpty && !_isProcessing)
                 _buildResultsSection(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProcessingProgress() {
+    if (_totalAnime == 0) return const SizedBox.shrink();
+    
+    final progress = _currentIndex / _totalAnime;
+    
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      elevation: 4,
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome,
+                  color: Theme.of(context).primaryColor,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Processing Anime List',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).primaryColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            
+            // Progress bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.grey[300],
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Theme.of(context).primaryColor,
+                ),
+                minHeight: 8,
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Current anime and progress info
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Currently Processing:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _currentAnime.isNotEmpty ? _currentAnime : 'Initializing...',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Theme.of(context).primaryColor.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Text(
+                    '$_currentIndex/$_totalAnime',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).primaryColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            
+            // Percentage
+            Text(
+              '${(progress * 100).toStringAsFixed(1)}% Complete',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -679,7 +840,23 @@ class _QBittorrentAddScreenState extends State<QBittorrentAddScreen> {
             physics: const NeverScrollableScrollPhysics(),
             itemCount: items.length,
             itemBuilder: (context, index) {
-              return ListTile(title: Text(items[index]), dense: true);
+              final item = items[index];
+              if (item is Map<String, String>) {
+                return ListTile(
+                  title: Text(item['anime'] ?? 'Unknown'),
+                  subtitle: Text(
+                    item['reason'] ?? 'No reason provided',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 12,
+                    ),
+                  ),
+                  dense: true,
+                );
+              } else {
+                // Fallback for old string format
+                return ListTile(title: Text(item.toString()), dense: true);
+              }
             },
           ),
       ],

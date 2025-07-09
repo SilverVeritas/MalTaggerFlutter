@@ -76,27 +76,33 @@ class RssUtils {
 
   static String initializeFansubberFromRss(String rssUrl) {
     final (fansubber, _) = extractFromRssUrl(rssUrl);
-    return fansubber ?? 'ember';
+    return fansubber ?? '';
   }
 
-  static String formatRssUrl(String title, [String fansubber = 'ember']) {
+  static String formatRssUrl(String title, [String fansubber = '']) {
     // For RSS URLs we need to properly encode everything including spaces
-    final safeFansubber = Uri.encodeComponent(fansubber);
-    // Replace quotes first, then encode the whole title
     final safeTitle = Uri.encodeComponent(title.replaceAll('"', "'"));
 
-    // New URL format for Animetosho
-    return 'https://feed.animetosho.org/rss2?only_tor=1&q=-batch+$safeFansubber+$safeTitle';
+    // New URL format for Animetosho - only include fansubber if it's not empty
+    if (fansubber.isNotEmpty) {
+      final safeFansubber = Uri.encodeComponent(fansubber);
+      return 'https://feed.animetosho.org/rss2?only_tor=1&q=-batch+$safeFansubber+$safeTitle';
+    } else {
+      return 'https://feed.animetosho.org/rss2?only_tor=1&q=-batch+$safeTitle';
+    }
   }
 
-  static String formatSearchUrl(String title, [String fansubber = 'ember']) {
-    // Encode the fansubber
-    final safeFansubber = Uri.encodeComponent(fansubber);
+  static String formatSearchUrl(String title, [String fansubber = '']) {
     // For the title, we want to keep spaces for the search interface
     final safeTitle = title.replaceAll('"', "'");
 
-    // Construct the search URL for Animetosho web interface
-    return 'https://animetosho.org/search?q=-batch+$safeFansubber+$safeTitle';
+    // Construct the search URL for Animetosho web interface - only include fansubber if it's not empty
+    if (fansubber.isNotEmpty) {
+      final safeFansubber = Uri.encodeComponent(fansubber);
+      return 'https://animetosho.org/search?q=-batch+$safeFansubber+$safeTitle';
+    } else {
+      return 'https://animetosho.org/search?q=-batch+$safeTitle';
+    }
   }
 
   static String formatSearchUrlFromTerms(String searchTerms, String fansubber) {

@@ -132,6 +132,7 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
     return Row(
       children: [
         Expanded(
+          flex: 3,
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 10),
@@ -151,20 +152,44 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
           ),
         ),
         const SizedBox(width: 8),
-        _buildSortDropdown(theme),
-        IconButton(
-          icon: Icon(
-            _showFilterOptions ? Icons.expand_less : Icons.expand_more,
-            size: 20,
+        Expanded(
+          flex: 2,
+          child: _buildSortDropdown(theme),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          height: 36,
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: theme.colorScheme.outline.withValues(alpha: 0.2),
+            ),
           ),
-          tooltip: _showFilterOptions ? 'Hide Filters' : 'Show Filters',
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
-          onPressed: () {
-            setState(() {
-              _showFilterOptions = !_showFilterOptions;
-            });
-          },
+          child: TextButton.icon(
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            onPressed: () {
+              setState(() {
+                _showFilterOptions = !_showFilterOptions;
+              });
+            },
+            icon: Icon(
+              _showFilterOptions ? Icons.expand_less : Icons.expand_more,
+              size: 16,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+            ),
+            label: Text(
+              _showFilterOptions ? 'Less' : 'More',
+              style: TextStyle(
+                fontSize: 12,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -325,6 +350,7 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
       children: [
         // Season dropdown
         Expanded(
+          flex: 3,
           child: Row(
             children: [
               Text(
@@ -339,7 +365,7 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
               Expanded(
                 child: DropdownMenu<String>(
                   initialSelection: widget.selectedSeason,
-                  width: 100,
+                  width: double.infinity,
                   textStyle: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
                   menuHeight: 160,
                   inputDecorationTheme: InputDecorationTheme(
@@ -377,6 +403,7 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
 
         // Year dropdown
         Expanded(
+          flex: 2,
           child: Row(
             children: [
               Text(
@@ -392,7 +419,7 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
                 child: DropdownMenu<int>(
                   initialSelection: widget.selectedYear,
                   menuHeight: 200,
-                  width: 100,
+                  width: double.infinity,
                   textStyle: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
                   inputDecorationTheme: InputDecorationTheme(
                     isDense: true,
@@ -524,39 +551,40 @@ class _ScraperControlPanelState extends State<ScraperControlPanel> {
           color: theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.sort,
             size: 16,
             color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
           ),
-          DropdownMenu<String>(
-            initialSelection: widget.sortBy,
-            width: 120,
-            menuHeight: 220,
-            textStyle: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
-            inputDecorationTheme: const InputDecorationTheme(
-              isDense: true,
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.symmetric(horizontal: 4),
+          const SizedBox(width: 4),
+          Expanded(
+            child: DropdownMenu<String>(
+              initialSelection: widget.sortBy,
+              width: double.infinity,
+              menuHeight: 220,
+              textStyle: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
+              inputDecorationTheme: const InputDecorationTheme(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(horizontal: 4),
+              ),
+              onSelected: (value) {
+                if (value != null) {
+                  widget.onSortChanged(value);
+                }
+              },
+              dropdownMenuEntries: const [
+                DropdownMenuEntry(value: 'alpha', label: 'Alphabetical (A-Z)'),
+                DropdownMenuEntry(value: 'alpha_reverse', label: 'Alphabetical (Z-A)'),
+                DropdownMenuEntry(value: 'members_high', label: 'Members (High to Low)'),
+                DropdownMenuEntry(value: 'members_low', label: 'Members (Low to High)'),
+                DropdownMenuEntry(value: 'date_newest', label: 'Date (Newest First)'),
+                DropdownMenuEntry(value: 'date_oldest', label: 'Date (Oldest First)'),
+              ],
             ),
-            onSelected: (value) {
-              if (value != null) {
-                widget.onSortChanged(value);
-              }
-            },
-            dropdownMenuEntries: const [
-              DropdownMenuEntry(value: 'alpha', label: 'A-Z'),
-              DropdownMenuEntry(value: 'alpha_reverse', label: 'Z-A'),
-              DropdownMenuEntry(value: 'members_high', label: 'Mem. ↓'),
-              DropdownMenuEntry(value: 'members_low', label: 'Mem. ↑'),
-              DropdownMenuEntry(value: 'date_newest', label: 'Newest First'),
-              DropdownMenuEntry(value: 'date_oldest', label: 'Oldest First'),
-            ],
           ),
         ],
       ),

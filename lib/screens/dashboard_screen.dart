@@ -20,6 +20,9 @@ class _QBittorrentDashboardScreenState
   String _statusMessage = 'Loading...';
   bool _isConnected = false;
   QBittorrentAPI? _qbClient;
+  int _currentTabIndex = 0;
+  int _feedsTabIndex = 0;
+  int _rulesTabIndex = 0;
 
   @override
   void initState() {
@@ -140,6 +143,11 @@ class _QBittorrentDashboardScreenState
             tabs: const [Tab(text: 'RSS Feeds'), Tab(text: 'RSS Rules')],
             indicatorColor: Theme.of(context).colorScheme.primary,
             labelColor: Theme.of(context).colorScheme.primary,
+            onTap: (index) {
+              setState(() {
+                _currentTabIndex = index;
+              });
+            },
           ),
           Expanded(
             child: TabBarView(
@@ -157,6 +165,11 @@ class _QBittorrentDashboardScreenState
                       _rssFeeds = feeds;
                     });
                   },
+                  onTabChanged: (index) {
+                    setState(() {
+                      _feedsTabIndex = index;
+                    });
+                  },
                 ),
                 RssRulesTab(
                   rules: _rssRules,
@@ -169,6 +182,11 @@ class _QBittorrentDashboardScreenState
                   onRulesUpdated: (rules) {
                     setState(() {
                       _rssRules = rules;
+                    });
+                  },
+                  onTabChanged: (index) {
+                    setState(() {
+                      _rulesTabIndex = index;
                     });
                   },
                 ),
@@ -211,6 +229,12 @@ class _QBittorrentDashboardScreenState
       appBar: AppBar(
         title: const Text('qBittorrent Dashboard'),
         actions: [
+          if (_isConnected && !_isLoading)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep, color: Colors.red),
+              onPressed: _deleteAllInCurrentSeason,
+              tooltip: 'Delete All in Current Season',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _isLoading ? null : _refreshData,
@@ -234,6 +258,182 @@ class _QBittorrentDashboardScreenState
               ? _buildDashboardContent()
               : _buildConnectionError(),
     );
+  }
+
+  Map<String, List<String>> _organizeBySeasonPrefix(Map<String, dynamic> items) {
+    final result = <String, List<String>>{
+      'winter': [],
+      'spring': [],
+      'summer': [],
+      'fall': [],
+      'other': [],
+    };
+
+    for (final name in items.keys) {
+      bool matched = false;
+      for (final season in ['winter', 'spring', 'summer', 'fall']) {
+        final pattern = RegExp(
+          '^${season.toUpperCase()}_\\d{4}_',
+          caseSensitive: false,
+        );
+        if (pattern.hasMatch(name)) {
+          result[season]!.add(name);
+          matched = true;
+          break;
+        }
+      }
+
+      if (!matched) {
+        result['other']!.add(name);
+      }
+    }
+
+    // Sort by year (descending) and then alphabetically within each season
+    for (final season in result.keys) {
+      result[season]!.sort((a, b) {
+        final yearPatternA = RegExp(r'_(\d{4})_').firstMatch(a);
+        final yearPatternB = RegExp(r'_(\d{4})_').firstMatch(b);
+
+        if (yearPatternA != null && yearPatternB != null) {
+          final yearA = int.parse(yearPatternA.group(1)!);
+          final yearB = int.parse(yearPatternB.group(1)!);
+
+          if (yearA != yearB) {
+            return yearB.compareTo(yearA);
+          }
+        }
+
+        return a.compareTo(b);
+      });
+    }
+
+    return result;
+  }
+
+  Future<void> _deleteAllInCurrentSeason() async {
+    if (_qbClient == null) return;
+    
+    final seasonNames = ['winter', 'spring', 'summer', 'fall', 'other'];
+    final String currentSeasonName;
+    final Map<String, dynamic> items;
+    final String itemType;
+    
+    if (_currentTabIndex == 0) {
+      // RSS Feeds tab
+      currentSeasonName = seasonNames[_feedsTabIndex];
+      items = _rssFeeds;
+      itemType = 'RSS FEEDS';
+    } else {
+      // RSS Rules tab
+      currentSeasonName = seasonNames[_rulesTabIndex];
+      items = _rssRules;
+      itemType = 'RSS RULES';
+    }
+    
+    final organizedItems = _organizeBySeasonPrefix(items);
+    final itemsInSeason = organizedItems[currentSeasonName]!;
+    
+    if (itemsInSeason.isEmpty) {
+      setState(() {
+        _statusMessage = 'No ${itemType.toLowerCase()} to delete in this season';
+      });
+      return;
+    }
+    
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Delete All'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to delete all ${itemsInSeason.length} ${itemType.toLowerCase()} in the ${currentSeasonName.toUpperCase()} season?'),
+            const SizedBox(height: 16),
+            Text(
+              'ALL ${currentSeasonName.toUpperCase()} $itemType',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'This action cannot be undone.',
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+            ),
+            const SizedBox(height: 8),
+            Text('${itemType.toLowerCase().substring(0, itemType.length - 1)} to be deleted:'),
+            const SizedBox(height: 8),
+            Container(
+              height: 100,
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: ListView(
+                children: itemsInSeason.map((item) => Text('• $item')).toList(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (!confirmed) return;
+
+    // Delete all items in the current season
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Deleting ${itemsInSeason.length} ${itemType.toLowerCase()}...';
+    });
+    
+    int deletedCount = 0;
+    int failedCount = 0;
+    
+    for (final itemName in itemsInSeason) {
+      try {
+        bool success;
+        if (_currentTabIndex == 0) {
+          // Delete feed
+          success = await _qbClient!.deleteFeed(itemName);
+        } else {
+          // Delete rule
+          success = await _qbClient!.deleteRule(itemName);
+        }
+        
+        if (success) {
+          deletedCount++;
+        } else {
+          failedCount++;
+        }
+      } catch (e) {
+        failedCount++;
+        print('Error deleting ${itemType.toLowerCase().substring(0, itemType.length - 1)} $itemName: $e');
+      }
+    }
+    
+    // Refresh the data
+    if (_currentTabIndex == 0) {
+      _rssFeeds = await _qbClient!.getRssFeeds();
+    } else {
+      _rssRules = await _qbClient!.getRssRules();
+    }
+    
+    setState(() {
+      _isLoading = false;
+      _statusMessage = 'Deleted $deletedCount ${itemType.toLowerCase()}, failed: $failedCount';
+    });
   }
 
   @override

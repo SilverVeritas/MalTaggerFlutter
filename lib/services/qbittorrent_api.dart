@@ -463,8 +463,21 @@ class QBittorrentAPI {
 
   Future<Map<String, dynamic>> getRssRules() async {
     try {
+      // Ensure we have a valid session
+      if (_sessionCookie == null) {
+        if (!await login()) return {};
+      }
+
       final url = '$_baseUrl/api/v2/rss/rules';
-      final response = await _client.get(Uri.parse(url));
+      final response = await _client.get(Uri.parse(url), headers: _headers);
+
+      // If unauthorized, try to login again
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (await login()) {
+          return getRssRules(); // Retry after login
+        }
+        return {};
+      }
 
       if (response.statusCode == 200) {
         return json.decode(response.body);
@@ -497,6 +510,163 @@ class QBittorrentAPI {
       }
     } catch (e) {
       return {'status': 'Error', 'message': e.toString()};
+    }
+  }
+
+  Future<Map<String, dynamic>> addFeedWithDetails(String url, String title) async {
+    try {
+      if (_sessionCookie == null) {
+        if (!await login()) {
+          return {'success': false, 'error': 'Login failed'};
+        }
+      }
+
+      // Check if feed already exists
+      final existingFeeds = await getRssFeeds();
+      if (existingFeeds.containsKey(title)) {
+        return {'success': false, 'error': 'Feed already exists', 'alreadyExists': true};
+      }
+
+      final apiUrl = '$_baseUrl/api/v2/rss/addFeed';
+      final response = await _client.post(
+        Uri.parse(apiUrl),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'url': url, 'path': title},
+      );
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        if (await login()) {
+          return addFeedWithDetails(url, title);
+        }
+        return {'success': false, 'error': 'Authentication failed'};
+      }
+
+      print('Add feed response: ${response.statusCode} - ${response.body}');
+      
+      if (response.statusCode == 200) {
+        return {'success': true};
+      } else {
+        return {'success': false, 'error': 'HTTP ${response.statusCode}: ${response.body}'};
+      }
+    } catch (e) {
+      print('Failed to add feed: $e');
+      return {'success': false, 'error': 'Exception: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> addRuleWithSavePathDetails(
+    String name,
+    String feedTitle,
+    String? savePath,
+  ) async {
+    try {
+      if (_sessionCookie == null) {
+        if (!await login()) {
+          return {'success': false, 'error': 'Login failed'};
+        }
+      }
+
+      // Get all RSS feeds
+      final feedsResponse = await _client.get(
+        Uri.parse('$_baseUrl/api/v2/rss/items'),
+        headers: _headers,
+      );
+
+      if (feedsResponse.statusCode != 200) {
+        return {'success': false, 'error': 'Failed to get RSS feeds: ${feedsResponse.statusCode}'};
+      }
+
+      final feedsData = json.decode(feedsResponse.body);
+
+      // Extract the feed URL from the feedsData
+      String? feedUrl;
+      if (feedsData is Map && feedsData.containsKey(feedTitle)) {
+        final feedInfo = feedsData[feedTitle];
+        if (feedInfo is Map && feedInfo.containsKey('url')) {
+          feedUrl = feedInfo['url'];
+          print('Found URL for feed: $feedTitle, URL: $feedUrl');
+        }
+      }
+
+      if (feedUrl == null) {
+        return {'success': false, 'error': 'Could not find feed URL for: $feedTitle'};
+      }
+
+      // Check if rule already exists
+      final rulesResponse = await _client.get(
+        Uri.parse('$_baseUrl/api/v2/rss/rules'),
+        headers: _headers,
+      );
+
+      Map<String, dynamic> existingRules = {};
+      if (rulesResponse.statusCode == 200) {
+        existingRules = json.decode(rulesResponse.body);
+        if (existingRules.containsKey(name)) {
+          return {'success': false, 'error': 'Rule already exists', 'alreadyExists': true};
+        }
+      }
+
+      // Create a rule with explicit matching for this feed
+      final ruleDefinition = jsonEncode({
+        'enabled': true,
+        'mustContain': '',
+        'mustNotContain': '',
+        'useRegex': false,
+        'episodeFilter': '',
+        'smartFilter': false,
+        'previouslyMatchedEpisodes': [],
+        'affectedFeeds': [feedUrl],
+        'ignoreDays': 0,
+        'lastMatch': '',
+        'addPaused': false,
+        'assignedCategory': '',
+        'savePath': savePath ?? '',
+      });
+
+      print('Adding rule: $name with URL: $feedUrl and savePath: $savePath');
+
+      // Set the rule
+      final ruleResponse = await _client.post(
+        Uri.parse('$_baseUrl/api/v2/rss/setRule'),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'ruleName': name, 'ruleDef': ruleDefinition},
+      );
+
+      if (ruleResponse.statusCode != 200) {
+        print('Failed to set rule: ${ruleResponse.statusCode} - ${ruleResponse.body}');
+
+        if (ruleResponse.statusCode == 401 || ruleResponse.statusCode == 403) {
+          if (await login()) {
+            return addRuleWithSavePathDetails(name, feedTitle, savePath);
+          }
+        }
+        return {'success': false, 'error': 'HTTP ${ruleResponse.statusCode}: ${ruleResponse.body}'};
+      }
+
+      print('Add rule response: ${ruleResponse.statusCode} - ${ruleResponse.body}');
+
+      // Force refresh ALL feeds to ensure rules are applied
+      final refreshResponse = await _client.post(
+        Uri.parse('$_baseUrl/api/v2/rss/refreshItem'),
+        headers: {
+          ..._headers,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: {'itemPath': ''},
+      );
+
+      print('Refresh response: ${refreshResponse.statusCode} - ${refreshResponse.body}');
+
+      return {'success': true};
+    } catch (e) {
+      print('Failed to add rule: $e');
+      return {'success': false, 'error': 'Exception: $e'};
     }
   }
 

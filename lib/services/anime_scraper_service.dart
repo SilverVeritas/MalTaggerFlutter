@@ -21,7 +21,7 @@ class AnimeScraperService {
     int minMembers = 5000,
     bool excludeChinese = true,
     Function(int, int)? progressCallback,
-    String preferredFansubber = 'ember',
+    String preferredFansubber = '',
   }) async {
     final List<ScrapedAnime> filteredAnime = [];
     int currentPage = 1;
