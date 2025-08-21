@@ -63,24 +63,38 @@ class Anime {
     final titles = <String>[];
     if (json['title_english'] != null) titles.add(json['title_english']);
     if (json['title_japanese'] != null) titles.add(json['title_japanese']);
+    
+    // Extract genres
+    final genresList = <String>[];
+    if (json['genres'] != null) {
+      for (var genre in json['genres']) {
+        genresList.add(genre['name'] ?? '');
+      }
+    }
+    
+    // Extract aired date
+    String airedDate = 'TBA';
+    if (json['aired'] != null && json['aired']['string'] != null) {
+      airedDate = json['aired']['string'];
+    }
 
     return Anime(
       malId: json['mal_id'],
       title: json['title'] ?? '',
       alternativeTitles: titles,
-      imageUrl: json['images']?['jpg']?['image_url'],
-      synopsis: json['synopsis'],
+      imageUrl: json['images']?['jpg']?['large_image_url'] ?? json['images']?['jpg']?['image_url'] ?? '',
+      synopsis: json['synopsis'] ?? 'No synopsis available',
       isAdult: json['rating']?.toString().contains('Rx') ?? false,
       fansubber: '',
       rssUrl: '',
-      genres: [],
-      date: 'TBA',
-      episodes: '?',
-      status: 'Unknown',
-      type: 'Unknown',
-      source: 'Unknown',
-      score: 0.0,
-      members: 0,
+      genres: genresList,
+      date: airedDate,
+      episodes: json['episodes']?.toString() ?? '?',
+      status: json['status'] ?? 'Unknown',
+      type: json['type'] ?? 'Unknown',
+      source: json['source'] ?? 'Unknown',
+      score: (json['score'] ?? 0.0).toDouble(),
+      members: json['members'] ?? 0,
     );
   }
 

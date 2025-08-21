@@ -4,6 +4,7 @@ import 'anime_scraper_screen.dart';
 import 'qbittorrent_add_screen.dart';
 import 'settings_screen.dart';
 import 'qbittorrent_dashboard_screen.dart';
+import 'anime_download_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -183,6 +184,20 @@ class _HomeScreenState extends State<HomeScreen> {
                               MaterialPageRoute(
                                 builder:
                                     (context) => const QBittorrentAddScreen(),
+                              ),
+                            ),
+                            isVerticallyConstrained,
+                          ),
+                          SizedBox(height: isVerticallyConstrained ? 8 : 16),
+                          _buildNavigationButton(
+                            context,
+                            'Download Anime',
+                            Icons.cloud_download,
+                            () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder:
+                                    (context) => const AnimeDownloadScreen(),
                               ),
                             ),
                             isVerticallyConstrained,

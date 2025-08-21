@@ -166,4 +166,23 @@ class JikanApiService {
     
     return uniqueList;
   }
+  
+  Future<Anime?> getAnimeDetails(int malId) async {
+    final url = 'https://api.jikan.moe/v4/anime/$malId';
+    
+    try {
+      final response = await http.get(Uri.parse(url));
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data.containsKey('data')) {
+          return _parseAnimeData(data['data']);
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching anime details: $e');
+      return null;
+    }
+  }
 } 

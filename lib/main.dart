@@ -4,6 +4,7 @@ import './screens/home_screen.dart';
 import './screens/anime_scraper_screen.dart';
 import './screens/qbittorrent_add_screen.dart';
 import './screens/qbittorrent_dashboard_screen.dart';
+import './screens/anime_download_screen.dart';
 import './screens/settings_screen.dart';
 import './services/app_state.dart';
 import 'package:provider/provider.dart';
@@ -100,6 +101,7 @@ class MyApp extends StatelessWidget {
             '/qbittorrent_add': (context) => const QBittorrentAddScreen(),
             '/qbittorrent_dashboard':
                 (context) => const QBittorrentDashboardScreen(),
+            '/anime_download': (context) => const AnimeDownloadScreen(),
             '/settings': (context) => const SettingsScreen(),
           },
         );
